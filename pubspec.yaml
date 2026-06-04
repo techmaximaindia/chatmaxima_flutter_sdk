@@ -13,10 +13,15 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # ChatMaxima's customized chat UI (local fork sibling to this package).
-  # Holds the ChatMaxima-specific Message/ChatUser fields the SDK relies on.
+  # ChatMaxima's customized chat UI fork. Holds the ChatMaxima-specific
+  # Message/ChatUser fields the SDK relies on. Pinned to a commit so the SDK
+  # always builds against the version it was tested with. For local fork
+  # development, override this with a pubspec_overrides.yaml pointing at the
+  # sibling path.
   chatview:
-    path: ../flutter_chatview
+    git:
+      url: https://github.com/techmaximaindia/flutter_chatview.git
+      ref: cc6eb7e265ce1dc394cf6b0e42261ee45978654a
 
   socket_io_client: ^2.0.3+1   # realtime channel, matches connect.chatmaxima.com
   http: ^1.2.0                 # REST: session bootstrap + send message
