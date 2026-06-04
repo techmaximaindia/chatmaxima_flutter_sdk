@@ -1,0 +1,31 @@
+name: chatmaxima_flutter_sdk
+description: Embed ChatMaxima live chat (bot + human agents) inside your Android and iOS apps. Speaks the same realtime protocol as the ChatMaxima website widget.
+version: 0.1.0
+homepage: https://chatmaxima.com
+repository: https://github.com/techmaximaindia/chatmaxima_flutter_sdk
+publish_to: none
+
+environment:
+  sdk: '>=3.0.3 <4.0.0'
+  flutter: '>=3.10.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # ChatMaxima's customized chat UI (local fork sibling to this package).
+  # Holds the ChatMaxima-specific Message/ChatUser fields the SDK relies on.
+  chatview:
+    path: ../flutter_chatview
+
+  socket_io_client: ^2.0.3+1   # realtime channel, matches connect.chatmaxima.com
+  http: ^1.2.0                 # REST: session bootstrap + send message
+  shared_preferences: ^2.2.0   # persist visitor + conversation identity
+  uuid: ^4.2.1                 # generate visitor / conversation ids
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:

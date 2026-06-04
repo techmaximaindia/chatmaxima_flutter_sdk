@@ -1,0 +1,10 @@
+include: package:flutter_lints/flutter.yaml
+
+# This package follows the ChatMaxima project code style (snake_case
+# identifiers, braces on a new line) to stay consistent with the rest of the
+# codebase, so the default Dart camelCase identifier lints are relaxed.
+linter:
+  rules:
+    non_constant_identifier_names: false
+    constant_identifier_names: false
+    library_private_types_in_public_api: false
