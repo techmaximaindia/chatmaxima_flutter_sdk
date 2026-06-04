@@ -21,7 +21,7 @@ dependencies:
   chatview:
     git:
       url: https://github.com/techmaximaindia/flutter_chatview.git
-      ref: cc6eb7e265ce1dc394cf6b0e42261ee45978654a
+      ref: ab8ad51a87c60bdd6b821b14af2a379f198be72e
 
   socket_io_client: ^2.0.3+1   # realtime channel, matches connect.chatmaxima.com
   http: ^1.2.0                 # REST: session bootstrap + send message
