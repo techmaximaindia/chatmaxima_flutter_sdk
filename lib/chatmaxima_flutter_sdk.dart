@@ -17,6 +17,7 @@ library chatmaxima_flutter_sdk;
 
 export 'src/chatmaxima.dart';
 export 'src/cm_config.dart';
+export 'src/models/cm_conversation.dart';
 export 'src/models/cm_lead_info.dart';
 export 'src/models/cm_session.dart';
 export 'src/models/cm_site_config.dart';

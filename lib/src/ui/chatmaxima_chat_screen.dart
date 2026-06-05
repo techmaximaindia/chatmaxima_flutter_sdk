@@ -28,6 +28,10 @@ class ChatMaximaChatScreen extends StatefulWidget
 	/// Optional title override for the app bar (defaults to channel title).
 	final String? title;
 
+	/// Optional conversation to resume (e.g. tapped from a conversation list).
+	/// When set, the SDK must already be initialized.
+	final String? conversation_id;
+
 	const ChatMaximaChatScreen({
 		super.key,
 		this.api_key,
@@ -35,6 +39,7 @@ class ChatMaximaChatScreen extends StatefulWidget
 		this.bundle_id,
 		this.lead_info,
 		this.title,
+		this.conversation_id,
 	});
 
 	@override
@@ -52,24 +57,33 @@ class _ChatMaximaChatScreenState extends State<ChatMaximaChatScreen>
 		_bootstrap = _ensure_session();
 	}
 
-	Future<CmSession> _ensure_session()
+	Future<CmSession> _ensure_session() async
 	{
-		if (Chatmaxima.instance.is_initialized)
+		if (!Chatmaxima.instance.is_initialized)
 		{
-			return Future.value(Chatmaxima.instance.session);
+			if (widget.api_key == null)
+			{
+				throw CmApiException(
+					'Chatmaxima is not initialized. Call Chatmaxima.instance.init() or pass api_key.',
+				);
+			}
+			await Chatmaxima.instance.init(
+				api_key: widget.api_key!,
+				base_url: widget.base_url,
+				bundle_id: widget.bundle_id,
+				lead_info: widget.lead_info,
+			);
 		}
-		if (widget.api_key == null)
+
+		// Resume a specific conversation when requested (e.g. from a list).
+		if (widget.conversation_id != null &&
+			widget.conversation_id!.isNotEmpty &&
+			widget.conversation_id != Chatmaxima.instance.session.conversation_id)
 		{
-			return Future.error(CmApiException(
-				'Chatmaxima is not initialized. Call Chatmaxima.instance.init() or pass api_key.',
-			));
+			return Chatmaxima.instance.open_conversation(widget.conversation_id!);
 		}
-		return Chatmaxima.instance.init(
-			api_key: widget.api_key!,
-			base_url: widget.base_url,
-			bundle_id: widget.bundle_id,
-			lead_info: widget.lead_info,
-		);
+
+		return Chatmaxima.instance.session;
 	}
 
 	void _retry()

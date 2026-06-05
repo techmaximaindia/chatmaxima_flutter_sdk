@@ -126,6 +126,123 @@ class CmApiClient
 		}
 	}
 
+	/// Upload a local media file (image/audio/file) and return the public URL +
+	/// resolved media_type. Mirrors the widget's POST to /webhooks/upload_media/.
+	Future<({String media_url, String media_type})> upload_media({
+		required CmSession session,
+		required String file_path,
+	}) async
+	{
+		final request = http.MultipartRequest('POST', Uri.parse(session.upload_media_url));
+		request.fields['account_alias'] = session.account_alias;
+		request.files.add(await http.MultipartFile.fromPath('file', file_path));
+
+		http.StreamedResponse streamed;
+		try
+		{
+			streamed = await request.send();
+		}
+		catch (e)
+		{
+			throw CmApiException('Failed to upload media: $e');
+		}
+
+		final body = await streamed.stream.bytesToString();
+		if (streamed.statusCode != 200)
+		{
+			throw CmApiException('Media upload failed', status_code: streamed.statusCode);
+		}
+
+		try
+		{
+			final json = jsonDecode(body) as Map<String, dynamic>;
+			final url = (json['media_url'] ?? '').toString();
+			final type = (json['media_type'] ?? '').toString();
+			if (url.isEmpty)
+			{
+				throw CmApiException('Upload returned no media_url.');
+			}
+			return (media_url: url, media_type: type);
+		}
+		on CmApiException
+		{
+			rethrow;
+		}
+		catch (_)
+		{
+			throw CmApiException('Unexpected upload response.');
+		}
+	}
+
+	/// Fetch the visitor's past conversations (raw JSON maps; map with
+	/// CmConversation.from_json). Returns [] on any non-fatal failure.
+	Future<List<Map<String, dynamic>>> fetch_conversations({required CmSession session}) async
+	{
+		final url = '${_config.base_url}mobileapp/conversations/';
+		final res = await _post_json(url, {'user_id': session.end_user_id});
+		final data = res['data'];
+		if (data is List)
+		{
+			return data.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList();
+		}
+		return <Map<String, dynamic>>[];
+	}
+
+	/// Fetch the message history of a conversation (raw JSON maps; map with
+	/// CmMessageMapper.from_history). Returns [] on any non-fatal failure.
+	Future<List<Map<String, dynamic>>> fetch_messages({
+		required CmSession session,
+		required String conversation_id,
+	}) async
+	{
+		final url = '${_config.base_url}mobileapp/messages/';
+		final res = await _post_json(url, {
+			'user_id': session.end_user_id,
+			'conversation_id': conversation_id,
+		});
+		final data = res['data'];
+		if (data is List)
+		{
+			return data.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList();
+		}
+		return <Map<String, dynamic>>[];
+	}
+
+	// Shared authenticated JSON POST used by the list/history endpoints.
+	Future<Map<String, dynamic>> _post_json(String url, Map<String, dynamic> body) async
+	{
+		http.Response res;
+		try
+		{
+			res = await _http.post(
+				Uri.parse(url),
+				headers: {
+					'Content-Type': 'application/json',
+					'Accept': 'application/json',
+					'Authorization': 'Bearer ${_config.api_key}',
+				},
+				body: jsonEncode(body),
+			);
+		}
+		catch (e)
+		{
+			throw CmApiException('Network error reaching $url: $e');
+		}
+		if (res.statusCode != 200)
+		{
+			throw CmApiException('Request failed', status_code: res.statusCode);
+		}
+		try
+		{
+			final decoded = jsonDecode(res.body);
+			return decoded is Map<String, dynamic> ? decoded : <String, dynamic>{};
+		}
+		catch (_)
+		{
+			return <String, dynamic>{};
+		}
+	}
+
 	void close() => _http.close();
 
 	String _extract_error(String body)

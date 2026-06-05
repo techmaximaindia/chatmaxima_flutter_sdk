@@ -21,6 +21,17 @@ class CmSession
 
 	final CmSiteConfig site;
 
+	/// Public media upload endpoint, derived from [send_message_url].
+	/// (.../webhooks/livechatwidget/ -> .../webhooks/upload_media/)
+	String get upload_media_url
+	{
+		if (send_message_url.contains('webhooks/livechatwidget/'))
+		{
+			return send_message_url.replaceAll('webhooks/livechatwidget/', 'webhooks/upload_media/');
+		}
+		return send_message_url; // fallback; server still accepts account_alias
+	}
+
 	const CmSession({
 		required this.account_alias,
 		required this.conversation_id,

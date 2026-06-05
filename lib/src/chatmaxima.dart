@@ -1,4 +1,5 @@
 import 'cm_config.dart';
+import 'models/cm_conversation.dart';
 import 'models/cm_lead_info.dart';
 import 'models/cm_session.dart';
 import 'services/cm_api_client.dart';
@@ -103,6 +104,26 @@ class Chatmaxima
 	{
 		_ensure_initialized();
 		await _api!.send_message(session: _session!, query: text);
+	}
+
+	/// List the current visitor's past conversations. Requires [init].
+	Future<List<CmConversation>> list_conversations() async
+	{
+		_ensure_initialized();
+		final raw = await _api!.fetch_conversations(session: _session!);
+		return raw.map(CmConversation.from_json).toList();
+	}
+
+	/// Open (resume) a specific conversation by id. Re-bootstraps the session
+	/// bound to that conversation and makes it the active one.
+	Future<CmSession> open_conversation(String conversation_id) async
+	{
+		_ensure_initialized();
+		final user_id = await _identity!.get_or_create_user_id();
+		final session = await _api!.create_session(user_id: user_id, conversation_id: conversation_id);
+		await _identity!.save(user_id: session.end_user_id, conversation_id: session.conversation_id);
+		_session = session;
+		return session;
 	}
 
 	/// Release resources. Call when fully done (e.g. user logs out).
