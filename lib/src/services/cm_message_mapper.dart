@@ -42,15 +42,18 @@ class CmMessageMapper
 	}
 
 	/// Build the locally-shown optimistic copy of a message the user just sent.
+	/// [id] should be the cb_reference_messsage_sid so the server echo dedupes
+	/// against this bubble.
 	static Message outgoing({
 		required String app_user_id,
 		required String text,
+		String? id,
 		String media_url = '',
 		MessageType type = MessageType.text,
 	})
 	{
 		return Message(
-			id: DateTime.now().microsecondsSinceEpoch.toString(),
+			id: id ?? DateTime.now().microsecondsSinceEpoch.toString(),
 			message: type == MessageType.image ? media_url : text,
 			createdAt: DateTime.now(),
 			sendBy: app_user_id,
@@ -58,6 +61,17 @@ class CmMessageMapper
 			status: MessageStatus.pending,
 			image_text_message: type == MessageType.image ? text : '',
 		);
+	}
+
+	/// Stable de-duplication id for an incoming/echo payload: prefer the
+	/// client reference sid (round-tripped by the server for the user's own
+	/// messages), else the server message id.
+	static String dedup_id(Map<String, dynamic> json)
+	{
+		final message_data = (json['message_data'] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{};
+		final sid = (message_data['cb_reference_messsage_sid'] ?? json['cb_reference_messsage_sid'] ?? '').toString();
+		if (sid.isNotEmpty) return sid;
+		return (json['message_id'] ?? '').toString();
 	}
 
 	static MessageType _resolve_type(String media_type)

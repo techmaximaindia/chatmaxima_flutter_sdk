@@ -88,6 +88,7 @@ class CmApiClient
 		String media_type = '',
 		String? parent_message_id,
 		Map<String, dynamic>? customer_data,
+		String? reference_sid,
 	}) async
 	{
 		final request = http.MultipartRequest('POST', Uri.parse(session.send_message_url));
@@ -96,7 +97,9 @@ class CmApiClient
 			'user_id': session.end_user_id,
 			'account_alias': session.account_alias,
 			'conversation_id': session.conversation_id,
-			'cb_reference_messsage_sid': _reference_sid(), // client-side message id (spelling matches backend)
+			// Client-side message id (spelling matches backend). The server
+			// echoes it back so the client can dedupe its own message.
+			'cb_reference_messsage_sid': reference_sid ?? _reference_sid(),
 			'message_user_datetime': _now_with_millis(),
 			'media_url': media_url,
 			'media_type': media_type,

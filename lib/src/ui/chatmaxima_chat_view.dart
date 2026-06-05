@@ -1,5 +1,6 @@
 import 'package:chatview/chatview.dart';
 import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
 
 import '../chatmaxima.dart';
 import '../cm_config.dart';
@@ -41,6 +42,9 @@ class _ChatMaximaChatViewState extends State<ChatMaximaChatView>
 	late final ChatUser _agent_user;
 	CmSocketClient? _socket;
 
+	// Message ids already shown (sent sids + rendered incoming ids) for dedupe.
+	final Set<String> _seen_ids = <String>{};
+
 	@override
 	void initState()
 	{
@@ -79,10 +83,16 @@ class _ChatMaximaChatViewState extends State<ChatMaximaChatView>
 
 		socket.on_incoming = (data)
 		{
-			final message = CmMessageMapper.from_incoming(data, app_user_id: _current_user.id);
-			// Ignore our own echo (already shown optimistically).
-			if (message.sendBy == _current_user.id) return;
 			if (!mounted) return;
+			// Dedupe: the server echoes the user's own message back (carrying the
+			// cb_reference_messsage_sid we sent). Skip anything we've already shown.
+			final id = CmMessageMapper.dedup_id(data);
+			if (id.isNotEmpty && _seen_ids.contains(id)) return;
+			if (id.isNotEmpty) _seen_ids.add(id);
+
+			final message = CmMessageMapper.from_incoming(data, app_user_id: _current_user.id);
+			// Belt-and-braces: never render our own message as an agent bubble.
+			if (message.sendBy == _current_user.id) return;
 			_chat_controller.addMessage(message);
 			_chat_controller.setTypingIndicator = false;
 		};
@@ -118,20 +128,36 @@ class _ChatMaximaChatViewState extends State<ChatMaximaChatView>
 
 	void _on_send_tap(String message, ReplyMessage reply_message, MessageType message_type, String? image_message)
 	{
-		// Optimistic local echo.
+		// Generate the reference sid up front: it is both the optimistic
+		// bubble's id and the value sent to the server, so the echoed-back copy
+		// dedupes against this bubble instead of appearing as a second message.
+		final sid = _gen_reference_sid();
+		_seen_ids.add(sid);
+
 		_chat_controller.addMessage(CmMessageMapper.outgoing(
 			app_user_id: _current_user.id,
+			id: sid,
 			text: message,
 			type: MessageType.text,
 		));
 
-		Chatmaxima.instance.send_text(message).catchError((e)
+		Chatmaxima.instance.api.send_message(
+			session: _session,
+			query: message,
+			reference_sid: sid,
+		).catchError((e)
 		{
 			if (!mounted) return;
 			ScaffoldMessenger.of(context).showSnackBar(
 				const SnackBar(content: Text('Message failed to send. Please try again.')),
 			);
 		});
+	}
+
+	// 10-char client message id, mirroring the website widget's makeid(10).
+	String _gen_reference_sid()
+	{
+		return const Uuid().v4().replaceAll('-', '').substring(0, 10);
 	}
 
 	@override
