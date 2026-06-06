@@ -1,4 +1,5 @@
 import 'package:chatview/chatview.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
@@ -7,6 +8,7 @@ import '../cm_config.dart';
 import '../models/cm_session.dart';
 import '../services/cm_message_mapper.dart';
 import '../services/cm_socket_client.dart';
+import 'cm_custom_message.dart';
 
 /// Embeddable ChatMaxima chat surface (no Scaffold / AppBar of its own).
 ///
@@ -167,7 +169,8 @@ class _ChatMaximaChatViewState extends State<ChatMaximaChatView>
 
 		if (message_type == MessageType.voice)
 		{
-			_handle_voice_send(message, reply_message);
+			// Recorded voice note -> custom bubble (rendered by CmVoicePlayer).
+			_handle_custom_file_send(message, reply_message);
 			return;
 		}
 
@@ -238,9 +241,37 @@ class _ChatMaximaChatViewState extends State<ChatMaximaChatView>
 		}
 	}
 
-	// Optimistically show the recorded voice note (plays from the local file),
-	// upload the audio, then send the resulting URL.
-	Future<void> _handle_voice_send(String path, ReplyMessage reply_message) async
+	// Open an all-type file picker (replaces the camera). Images are sent as
+	// image bubbles; everything else (audio/video/pdf/doc/...) as a custom
+	// message rendered by cm_custom_message_builder.
+	Future<void> _select_file() async
+	{
+		FilePickerResult? result;
+		try
+		{
+			result = await FilePicker.platform.pickFiles(type: FileType.any, allowMultiple: false);
+		}
+		catch (e)
+		{
+			_on_send_error();
+			return;
+		}
+		final path = result?.files.single.path;
+		if (path == null || path.isEmpty) return;
+
+		if (_is_image_path(path))
+		{
+			_handle_image_send(path, '', const ReplyMessage());
+		}
+		else
+		{
+			_handle_custom_file_send(path, const ReplyMessage());
+		}
+	}
+
+	// Optimistically show the file/voice (local path), upload it, then send the
+	// resulting URL. Audio plays via CmVoicePlayer; other files show a card.
+	Future<void> _handle_custom_file_send(String path, ReplyMessage reply_message) async
 	{
 		if (path.trim().isEmpty) return;
 		final sid = _gen_reference_sid();
@@ -248,10 +279,10 @@ class _ChatMaximaChatViewState extends State<ChatMaximaChatView>
 
 		_chat_controller.addMessage(Message(
 			id: sid,
-			message: path,            // local file path -> plays immediately
+			message: path,            // local file path -> renders immediately
 			createdAt: DateTime.now(),
 			sendBy: _current_user.id,
-			messageType: MessageType.voice,
+			messageType: MessageType.custom,
 			status: MessageStatus.pending,
 			profilename: _current_user.name,
 		));
@@ -263,7 +294,7 @@ class _ChatMaximaChatViewState extends State<ChatMaximaChatView>
 				session: _session,
 				query: '',
 				media_url: uploaded.media_url,
-				media_type: uploaded.media_type.isNotEmpty ? uploaded.media_type : 'audio',
+				media_type: uploaded.media_type.isNotEmpty ? uploaded.media_type : _media_type_of(path),
 				reference_sid: sid,
 				parent_message_id: reply_message.messageId.isNotEmpty ? reply_message.messageId : null,
 			);
@@ -272,6 +303,23 @@ class _ChatMaximaChatViewState extends State<ChatMaximaChatView>
 		{
 			_on_send_error();
 		}
+	}
+
+	bool _is_image_path(String path)
+	{
+		final p = path.toLowerCase();
+		return p.endsWith('.jpg') || p.endsWith('.jpeg') || p.endsWith('.png') ||
+			p.endsWith('.gif') || p.endsWith('.webp') || p.endsWith('.bmp') || p.endsWith('.heic');
+	}
+
+	String _media_type_of(String path)
+	{
+		final p = path.toLowerCase();
+		const audio = ['.mp3', '.wav', '.aac', '.m4a', '.ogg', '.oga', '.opus', '.flac', '.amr'];
+		const video = ['.mp4', '.mov', '.mkv', '.webm', '.avi', '.3gp', '.m4v'];
+		if (audio.any(p.endsWith)) return 'audio';
+		if (video.any(p.endsWith)) return 'video';
+		return 'file';
 	}
 
 	void _on_send_error()
@@ -341,11 +389,35 @@ class _ChatMaximaChatViewState extends State<ChatMaximaChatView>
 			),
 			sendMessageConfig: SendMessageConfiguration(
 				allowRecordingVoice: true,            // record + send voice messages
+				recordViaHostCallback: true,          // deliver recordings to onSendTap (our upload pipeline)
 				enableMaxIA: false,                   // hide the agent-only AI compose button
-				enableCameraImagePicker: _session.site.allow_attachment, // now backed by file_picker
+				enableCameraImagePicker: _session.site.allow_attachment, // repurposed as the file picker
 				enableGalleryImagePicker: _session.site.allow_attachment,
+				// Replace the camera with an all-type file picker (the icon's own
+				// gesture handles the tap; the fork's button is a no-op).
+				imagePickerIconsConfig: ImagePickerIconsConfiguration(
+					galleryIconColor: const Color(0xFF6B7280),
+					cameraImagePickerIcon: GestureDetector(
+						onTap: _select_file,
+						child: const Icon(Icons.attach_file, color: Color(0xFF6B7280)),
+					),
+				),
 				defaultSendButtonColor: theme_color,
 				textFieldBackgroundColor: Theme.of(context).cardColor,
+				textFieldConfig: const TextFieldConfiguration(
+					// Ensure typed text + hint are visible against the field background.
+					textStyle: TextStyle(color: Color(0xFF1F2937), fontSize: 15),
+					hintStyle: TextStyle(color: Color(0xFF9CA3AF), fontSize: 15),
+				),
+			),
+			messageConfig: MessageConfiguration(
+				// Render MessageType.custom (audio/video/pdf/doc/...) ourselves:
+				// a voice player for audio, a tappable file card otherwise.
+				customMessageBuilder: (message) => cm_custom_message_builder(
+					message,
+					current_user_id: _current_user.id,
+					accent: theme_color,
+				),
 			),
 			chatBubbleConfig: ChatBubbleConfiguration(
 				outgoingChatBubbleConfig: ChatBubble(

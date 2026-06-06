@@ -21,12 +21,15 @@ dependencies:
   chatview:
     git:
       url: https://github.com/techmaximaindia/flutter_chatview.git
-      ref: 3e83d239402445f2b8286686b2c3bf578dbee84a
+      ref: ceaaeb7ab4efa7a1195e884d037c481c1770e007
 
   socket_io_client: ^2.0.3+1   # realtime channel, matches connect.chatmaxima.com
   http: ^1.2.0                 # REST: session bootstrap + send message
   shared_preferences: ^2.2.0   # persist visitor + conversation identity
   uuid: ^4.2.1                 # generate visitor / conversation ids
+  just_audio: ^0.9.36          # custom voice-note playback (with completion reset)
+  file_picker: ^9.0.0          # pick any file type to send (replaces camera)
+  url_launcher: ^6.2.0         # open received files in the device's default app
 
 dev_dependencies:
   flutter_test:

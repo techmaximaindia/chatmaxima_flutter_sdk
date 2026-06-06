@@ -29,7 +29,7 @@ class CmMessageMapper
 
 		return Message(
 			id: id,
-			message: (type == MessageType.image || type == MessageType.voice) ? media_url : _with_media_fallback(answer, type, media_url),
+			message: (type == MessageType.image || type == MessageType.custom) ? media_url : _with_media_fallback(answer, type, media_url),
 			createdAt: DateTime.now(),
 			sendBy: sent_by,
 			profilename: (json['profile_name'] ?? '').toString(),
@@ -42,23 +42,58 @@ class CmMessageMapper
 		);
 	}
 
-	// Build a ReplyMessage from the incoming payload's parent_message fields so
-	// the quoted bubble renders above a reply.
+	// Build a ReplyMessage from the incoming payload's parent_message so the
+	// quoted bubble renders the original content. The backend sends
+	// parent_message as an object: { cm_parent_message_text,
+	// cm_parent_message_media_type, cm_parent_message_media_url }. (Older /
+	// alternate payloads may send a plain string; both are handled.)
 	static ReplyMessage _reply_from_incoming(Map<String, dynamic> message_data, String app_user_id, String sent_by)
 	{
-		final parent_text = (message_data['parent_message'] ?? '').toString();
+		final parent = message_data['parent_message'];
 		final parent_id = (message_data['parent_message_id'] ?? '').toString();
-		if (parent_text.isEmpty && parent_id.isEmpty)
+
+		String parent_text = '';
+		String media_type = '';
+		String media_url = '';
+
+		if (parent is Map)
+		{
+			parent_text = (parent['cm_parent_message_text'] ?? '').toString();
+			media_type = (parent['cm_parent_message_media_type'] ?? '').toString().toLowerCase();
+			media_url = (parent['cm_parent_message_media_url'] ?? '').toString();
+		}
+		else if (parent is String)
+		{
+			parent_text = parent;
+		}
+
+		if (parent_text.isEmpty && media_url.isEmpty && parent_id.isEmpty)
 		{
 			return const ReplyMessage();
 		}
+
+		final type = _reply_type(media_type);
+		final is_media = type != MessageType.text;
 		return ReplyMessage(
-			message: parent_text,
 			messageId: parent_id,
+			message: is_media ? media_url : parent_text, // media -> url, text -> text
+			image_text_message: is_media ? parent_text : '', // caption on media replies
+			messageType: type,
 			replyBy: sent_by,
 			replyTo: app_user_id,
-			messageType: MessageType.text,
 		);
+	}
+
+	// Quoted-reply preview type: image as image, other media as custom (icon),
+	// everything else as text. Mirrors the agent app's reply mapping.
+	static MessageType _reply_type(String media_type)
+	{
+		if (media_type == 'image') return MessageType.image;
+		if (media_type == 'video' || media_type == 'audio' || media_type == 'voice' || media_type == 'file')
+		{
+			return MessageType.custom;
+		}
+		return MessageType.text;
 	}
 
 	/// Build the locally-shown optimistic copy of a message the user just sent.
@@ -114,7 +149,7 @@ class CmMessageMapper
 
 		return Message(
 			id: (json['cb_message_id'] ?? json['cb_reference_messsage_sid'] ?? json['message_id'] ?? DateTime.now().microsecondsSinceEpoch).toString(),
-			message: (type == MessageType.image || type == MessageType.voice) ? media_url : text,
+			message: (type == MessageType.image || type == MessageType.custom) ? media_url : text,
 			createdAt: _parse_history_date(json['cb_message_datetime']),
 			sendBy: is_user ? app_user_id : agent_user_id,
 			messageType: type,
@@ -147,8 +182,13 @@ class CmMessageMapper
 	static MessageType _resolve_type(String media_type)
 	{
 		if (media_type == 'image') return MessageType.image;
-		if (media_type == 'audio' || media_type == 'voice') return MessageType.voice;
-		return MessageType.text; // video/file shown as a link for now
+		// audio / voice / video / file all render via the custom builder
+		// (voice player or file card).
+		if (media_type == 'audio' || media_type == 'voice' || media_type == 'video' || media_type == 'file')
+		{
+			return MessageType.custom;
+		}
+		return MessageType.text;
 	}
 
 	// For non-image media, surface the URL so the user can still reach it.
