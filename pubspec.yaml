@@ -30,6 +30,8 @@ dependencies:
   just_audio: ^0.9.36          # custom voice-note playback (with completion reset)
   file_picker: ^9.0.0          # pick any file type to send (replaces camera)
   url_launcher: ^6.2.0         # open received files in the device's default app
+  livekit_client: ^2.3.0       # voice-agent calling (same path as the web widget)
+  permission_handler: ^11.3.0  # request microphone permission before a call
 
 dev_dependencies:
   flutter_test:

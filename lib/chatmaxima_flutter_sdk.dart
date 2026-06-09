@@ -22,5 +22,7 @@ export 'src/models/cm_lead_info.dart';
 export 'src/models/cm_session.dart';
 export 'src/models/cm_site_config.dart';
 export 'src/services/cm_api_client.dart' show CmApiException;
+export 'src/services/cm_call_service.dart' show CmCallException;
 export 'src/ui/chatmaxima_chat_view.dart';
 export 'src/ui/chatmaxima_chat_screen.dart';
+export 'src/ui/cm_call_screen.dart';

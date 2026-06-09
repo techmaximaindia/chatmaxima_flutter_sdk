@@ -5,6 +5,7 @@ import '../models/cm_lead_info.dart';
 import '../models/cm_session.dart';
 import '../services/cm_api_client.dart';
 import 'chatmaxima_chat_view.dart';
+import 'cm_call_screen.dart';
 
 /// A complete, themed chat screen you can push straight onto the navigator.
 ///
@@ -116,6 +117,17 @@ class _ChatMaximaChatScreenState extends State<ChatMaximaChatScreen>
 							backgroundColor: site.theme_color,
 							foregroundColor: site.theme_foreground_color,
 							titleSpacing: 0,
+							actions: [
+								// Voice-agent call (same path as the web widget).
+								if (site.voice_agent_enabled)
+									IconButton(
+										tooltip: 'Call',
+										icon: const Icon(Icons.call),
+										onPressed: () => Navigator.push(context, MaterialPageRoute(
+											builder: (_) => CmCallScreen(session: session),
+										)),
+									),
+							],
 							title: Row(
 								children: [
 									if (site.logo_bot != null)

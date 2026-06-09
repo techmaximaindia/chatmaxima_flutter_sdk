@@ -98,12 +98,42 @@ await Chatmaxima.instance.init(
 );
 ```
 
+## Voice calling
+
+If the channel has a voice agent configured, the chat screen shows a call
+button in the header and the user can talk to the AI voice agent (LiveKit,
+the same path as the website widget). To open the call screen directly:
+
+```dart
+Navigator.push(context, MaterialPageRoute(
+  builder: (_) => const CmCallScreen(), // uses the initialized session
+));
+```
+
+Calling needs microphone permission, declared by the **host app**:
+
+- **Android** (`android/app/src/main/AndroidManifest.xml`):
+
+  ```xml
+  <uses-permission android:name="android.permission.RECORD_AUDIO" />
+  <uses-permission android:name="android.permission.INTERNET" />
+  <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+  ```
+  `minSdkVersion` must be **23** or higher.
+
+- **iOS** (`ios/Runner/Info.plist`):
+
+  ```xml
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Used for voice calls with support.</string>
+  ```
+
 ## Notes
 
 - Visitor id and conversation id are persisted (per API key) so a returning
   user keeps their history.
-- Voice messages and outbound file uploads are not yet wired; inbound images
-  render in the bubble, other media falls back to a tappable link.
+- Images, voice notes, and any file type can be sent; received audio plays in
+  a built-in player, other files open in the device's default app.
 - Keep your API key out of source control where practical. Even though it is a
   low-privilege client credential (it can only start a chat session), pairing
   it with a bundle-id restriction is recommended.

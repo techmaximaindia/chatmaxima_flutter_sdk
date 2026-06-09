@@ -19,6 +19,12 @@ class CmSiteConfig
 	final String default_language;
 	final String assign_bot_name;
 
+	/// True when a voice agent is configured -> the call option is available.
+	final bool voice_agent_enabled;
+
+	/// The bot alias the voice agent runs (passed to /livekit/connect).
+	final String? voice_chat_bot_alias;
+
 	const CmSiteConfig({
 		required this.title,
 		required this.team_name,
@@ -34,6 +40,8 @@ class CmSiteConfig
 		required this.speech_to_text,
 		required this.default_language,
 		required this.assign_bot_name,
+		this.voice_agent_enabled = false,
+		this.voice_chat_bot_alias,
 	});
 
 	/// Primary brand color parsed from the hex string.
@@ -61,6 +69,8 @@ class CmSiteConfig
 			speech_to_text: yes(json['speech_to_text']),
 			default_language: (json['default_language'] ?? 'en').toString(),
 			assign_bot_name: (json['assign_bot_name'] ?? '').toString(),
+			voice_agent_enabled: (json['voice_agent_alias'] ?? 'N').toString().toUpperCase() == 'Y',
+			voice_chat_bot_alias: _empty_to_null(json['voice_chat_bot_alias']),
 		);
 	}
 

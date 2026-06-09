@@ -16,6 +16,10 @@ class CmSession
 	/// Realtime server resolved by the backend (e.g. connect.chatmaxima.com).
 	final String socket_url;
 
+	/// Voice-agent streaming server (LiveKit token endpoint host),
+	/// e.g. https://streaming.chatmaxima.com .
+	final String streaming_url;
+
 	/// REST endpoint the SDK posts outgoing messages to.
 	final String send_message_url;
 
@@ -40,6 +44,7 @@ class CmSession
 		required this.team_name,
 		required this.cb_lead_id,
 		required this.socket_url,
+		required this.streaming_url,
 		required this.send_message_url,
 		required this.site,
 	});
@@ -55,6 +60,7 @@ class CmSession
 			team_name: (json['team_name'] ?? '').toString(),
 			cb_lead_id: json['cb_lead_id']?.toString(),
 			socket_url: (json['socket_url'] ?? 'https://connect.chatmaxima.com').toString(),
+			streaming_url: (json['streaming_url'] ?? 'https://streaming.chatmaxima.com').toString(),
 			send_message_url: (json['send_message_url'] ?? '').toString(),
 			site: CmSiteConfig.from_json(site_json),
 		);
