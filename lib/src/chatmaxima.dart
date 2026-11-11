@@ -64,19 +64,8 @@ class Chatmaxima
 		_api = CmApiClient(config);
 		_identity = CmIdentityStore(config.api_key);
 
-		final user_id = await _identity!.get_or_create_user_id();
 		final conversation_id = await _identity!.get_or_create_conversation_id();
-
-		final session = await _api!.create_session(
-			user_id: user_id,
-			conversation_id: conversation_id,
-		);
-
-		// Persist the server-confirmed identifiers.
-		await _identity!.save(
-			user_id: session.end_user_id,
-			conversation_id: session.conversation_id,
-		);
+		final session = await _bootstrap(conversation_id);
 		_session = session;
 		return session;
 	}
@@ -87,13 +76,8 @@ class Chatmaxima
 	{
 		_ensure_initialized();
 		await _identity!.reset_conversation();
-		final user_id = await _identity!.get_or_create_user_id();
 		final conversation_id = await _identity!.get_or_create_conversation_id();
-		final session = await _api!.create_session(
-			user_id: user_id,
-			conversation_id: conversation_id,
-		);
-		await _identity!.save(user_id: session.end_user_id, conversation_id: session.conversation_id);
+		final session = await _bootstrap(conversation_id);
 		_session = session;
 		return session;
 	}
@@ -119,10 +103,28 @@ class Chatmaxima
 	Future<CmSession> open_conversation(String conversation_id) async
 	{
 		_ensure_initialized();
-		final user_id = await _identity!.get_or_create_user_id();
-		final session = await _api!.create_session(user_id: user_id, conversation_id: conversation_id);
-		await _identity!.save(user_id: session.end_user_id, conversation_id: session.conversation_id);
+		final session = await _bootstrap(conversation_id);
 		_session = session;
+		return session;
+	}
+
+	// One session call for [conversation_id]: a returning visitor sends its id with the token issued for it (a first
+	// launch sends no id, so the backend creates the visitor), then the server-confirmed ids and the new token are
+	// stored. The backend re-issues the token on every call, so an active visitor's token never runs out.
+	Future<CmSession> _bootstrap(String conversation_id) async
+	{
+		final user_id = await _identity!.get_user_id();
+		final session_token = await _identity!.get_session_token(user_id);
+		final session = await _api!.create_session(
+			user_id: user_id,
+			conversation_id: conversation_id,
+			session_token: session_token,
+		);
+		await _identity!.save(
+			user_id: session.end_user_id,
+			conversation_id: session.conversation_id,
+			session_token: session.session_token,
+		);
 		return session;
 	}
 

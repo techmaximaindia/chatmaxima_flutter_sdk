@@ -25,13 +25,19 @@ class CmApiClient
 	CmApiClient(this._config, {http.Client? client}) : _http = client ?? http.Client();
 
 	/// API-key authenticated bootstrap. Returns the resolved [CmSession].
+	///
+	/// [user_id] is null on a first launch (the backend creates the visitor). A returning visitor sends its id
+	/// together with the [session_token] issued for it; without a valid token the backend issues no token, and once
+	/// ChatMaxima enforces visitor tokens it starts a fresh visitor instead.
 	Future<CmSession> create_session({
-		required String user_id,
+		String? user_id,
 		required String conversation_id,
+		String? session_token,
 	}) async
 	{
 		final body = <String, dynamic>{
-			'user_id': user_id,
+			if (user_id != null && user_id.isNotEmpty) 'user_id': user_id,
+			if (user_id != null && user_id.isNotEmpty && session_token != null && session_token.isNotEmpty) 'session_token': session_token,
 			'conversation_id': conversation_id,
 			if (_config.bundle_id != null) 'bundle_id': _config.bundle_id,
 			if (_config.lead_info != null) 'lead_info': _config.lead_info!.to_json(),
@@ -108,6 +114,7 @@ class CmApiClient
 			'cb_message_parent_id': parent_message_id ?? '',
 			'customer_data': jsonEncode(customer_data ?? (_config.lead_info?.to_json() ?? {})),
 			'page_url_details': jsonEncode({'source': 'mobile_app'}),
+			'session_token': session.session_token, // proves the visitor owns user_id
 		});
 
 		http.StreamedResponse res;
@@ -135,6 +142,8 @@ class CmApiClient
 	{
 		final request = http.MultipartRequest('POST', Uri.parse(session.upload_media_url));
 		request.fields['account_alias'] = session.account_alias;
+		request.fields['user_id'] = session.end_user_id;
+		request.fields['session_token'] = session.session_token; // uploads are checked against the visitor's token
 		request.files.add(await http.MultipartFile.fromPath('file', file_path));
 
 		http.StreamedResponse streamed;
@@ -179,7 +188,10 @@ class CmApiClient
 	Future<List<Map<String, dynamic>>> fetch_conversations({required CmSession session}) async
 	{
 		final url = '${_config.base_url}mobileapp/conversations/';
-		final res = await _post_json(url, {'user_id': session.end_user_id});
+		final res = await _post_json(url, {
+			'user_id': session.end_user_id,
+			'session_token': session.session_token,
+		});
 		final data = res['data'];
 		if (data is List)
 		{
@@ -199,6 +211,7 @@ class CmApiClient
 		final res = await _post_json(url, {
 			'user_id': session.end_user_id,
 			'conversation_id': conversation_id,
+			'session_token': session.session_token,
 		});
 		final data = res['data'];
 		if (data is List)

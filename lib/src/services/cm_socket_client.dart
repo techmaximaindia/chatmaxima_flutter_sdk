@@ -43,6 +43,7 @@ class CmSocketClient
 			url,
 			io.OptionBuilder()
 				.setTransports(['websocket'])
+				.setAuth(_handshake_auth())
 				.disableAutoConnect()
 				.build(),
 		);
@@ -89,6 +90,21 @@ class CmSocketClient
 	{
 		_socket?.dispose();
 		_socket = null;
+	}
+
+	// socket.io handshake auth: the realtime server lets this socket join the visitor's own rooms (its user id and the
+	// conversations bound to it) only when the visitor token matches the account and user id.
+	Map<String, dynamic> _handshake_auth()
+	{
+		if (_session.session_token.isEmpty)
+		{
+			return <String, dynamic>{};
+		}
+		return {
+			'account_alias': _session.account_alias,
+			'cm_widget_token': _session.session_token,
+			'user_id': _session.end_user_id,
+		};
 	}
 
 	Map<String, dynamic> _handshake_payload()

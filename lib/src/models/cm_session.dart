@@ -13,6 +13,11 @@ class CmSession
 	final String team_name;
 	final String? cb_lead_id;
 
+	/// Visitor session token issued by the backend for [end_user_id]. Sent back on every send, upload, history call
+	/// and socket handshake so ChatMaxima knows the request comes from this visitor. '' when the backend did not issue
+	/// one (a returning visitor that could not prove its id); the visitor then works unproven until enforcement.
+	final String session_token;
+
 	/// Realtime server resolved by the backend (e.g. connect.chatmaxima.com).
 	final String socket_url;
 
@@ -43,6 +48,7 @@ class CmSession
 		required this.team_alias,
 		required this.team_name,
 		required this.cb_lead_id,
+		this.session_token = '',
 		required this.socket_url,
 		required this.streaming_url,
 		required this.send_message_url,
@@ -59,6 +65,7 @@ class CmSession
 			team_alias: (json['team_alias'] ?? '').toString(),
 			team_name: (json['team_name'] ?? '').toString(),
 			cb_lead_id: json['cb_lead_id']?.toString(),
+			session_token: (json['session_token'] ?? '').toString(),
 			socket_url: (json['socket_url'] ?? 'https://connect.chatmaxima.com').toString(),
 			streaming_url: (json['streaming_url'] ?? 'https://streaming.chatmaxima.com').toString(),
 			send_message_url: (json['send_message_url'] ?? '').toString(),
