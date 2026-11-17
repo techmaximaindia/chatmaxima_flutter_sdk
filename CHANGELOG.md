@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.0
+
+- Dynamic Widgets. A bot can now show a widget from the ChatMaxima Widget
+  Library (product card, order tracking, booking form, coupon and so on) and
+  the SDK draws it natively: cards, rows and columns, text, images, icons,
+  buttons, text fields, choice chips, date and time pickers, checkboxes and
+  sliders, in your theme colour. A pressed button is sent back to the bot with
+  what the user filled in, the same way the website widget does it.
+- Link buttons open in the device browser and copy buttons copy to the
+  clipboard without sending anything to the bot.
+- Not drawn yet: tabs show their panels one after another; popups, video and
+  audio players inside a widget are skipped. A widget received in an earlier
+  app session shows as its text when the conversation is reopened.
+
 ## 0.1.1
 
 - Visitor session token. The SDK stores the `session_token` that

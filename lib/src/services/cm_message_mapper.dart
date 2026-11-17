@@ -1,5 +1,7 @@
 import 'package:chatview/chatview.dart';
 
+import '../ui/cm_a2ui_surface.dart';
+
 /// Translates ChatMaxima socket payloads into chatview [Message] objects.
 ///
 /// Inbound bot/agent messages are attributed to the synthetic [agentUserId]
@@ -24,8 +26,30 @@ class CmMessageMapper
 		final is_own_echo = source == 'widget' || source == 'mobile_app';
 		final sent_by = is_own_echo ? app_user_id : agent_user_id;
 
-		final type = _resolve_type(media_type);
 		final id = (json['message_id'] ?? DateTime.now().microsecondsSinceEpoch).toString();
+
+		// A Dynamic Widget (A2UI surface): keep the payload in the registry and
+		// mark the message so the custom builder draws the widget. The text the
+		// server sent with it stays in image_text_message as the caption.
+		final widget_payload = is_own_echo ? null : CmA2uiPayload.from_extra_params(json['extra_params']);
+		if (widget_payload != null)
+		{
+			CmA2uiRegistry.put(id, widget_payload);
+			return Message(
+				id: id,
+				message: '${CmA2uiRegistry.marker}$id',
+				createdAt: DateTime.now(),
+				sendBy: sent_by,
+				profilename: (json['profile_name'] ?? '').toString(),
+				chatmaxima_profile_image: (message_data['profile_image'] ?? '').toString(),
+				messageType: MessageType.custom,
+				status: MessageStatus.delivered,
+				message_id: (message_data['cb_message_id'] ?? '').toString(),
+				image_text_message: widget_payload.hide_text ? '' : answer,
+			);
+		}
+
+		final type = _resolve_type(media_type);
 
 		return Message(
 			id: id,

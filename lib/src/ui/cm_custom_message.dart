@@ -2,6 +2,7 @@ import 'package:chatview/chatview.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'cm_a2ui_surface.dart';
 import 'cm_voice_player.dart';
 
 const _audio_exts = ['mp3', 'wav', 'aac', 'm4a', 'ogg', 'oga', 'opus', 'flac', 'amr', 'wma', 'caf', 'aiff', 'aif', '3ga'];
@@ -31,10 +32,41 @@ const Map<String, dynamic> _default_file_config = {
 
 /// Builds the widget for a MessageType.custom message: a voice player for
 /// audio, otherwise a tappable file card that opens externally.
-Widget cm_custom_message_builder(Message message, {required String current_user_id, required Color accent})
+Widget cm_custom_message_builder(Message message, {required String current_user_id, required Color accent, Color on_accent = Colors.white, CmA2uiActionCallback? on_widget_action})
 {
 	final url = message.message;
 	final is_right = message.sendBy == current_user_id;
+
+	// A Dynamic Widget the bot sent (see CmMessageMapper.from_incoming).
+	if (url.startsWith(CmA2uiRegistry.marker))
+	{
+		final widget_id = url.substring(CmA2uiRegistry.marker.length);
+		final payload = CmA2uiRegistry.get(widget_id);
+		if (payload != null)
+		{
+			final caption = message.image_text_message;
+			return Column(
+				mainAxisSize: MainAxisSize.min,
+				crossAxisAlignment: CrossAxisAlignment.start,
+				children: [
+					if (caption.isNotEmpty)
+						Padding(
+							padding: const EdgeInsets.only(bottom: 8),
+							child: Text(caption, style: const TextStyle(fontSize: 14, color: Color(0xFF1F2937))),
+						),
+					CmA2uiSurface(
+						key: ValueKey('cm_a2ui_$widget_id'),
+						message_id: widget_id,
+						payload: payload,
+						accent: accent,
+						on_accent: on_accent,
+						on_action: on_widget_action ?? (action, label) {},
+					),
+				],
+			);
+		}
+		return const SizedBox.shrink(); // the app was restarted: the payload is gone, history shows the text
+	}
 	final ext = _ext_of(url);
 
 	if (_audio_exts.contains(ext))

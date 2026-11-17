@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:chatview/chatview.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -196,6 +198,29 @@ class _ChatMaximaChatViewState extends State<ChatMaximaChatView>
 			query: message,
 			reference_sid: sid,
 			parent_message_id: reply_message.messageId.isNotEmpty ? reply_message.messageId : null,
+		).catchError((e) => _on_send_error());
+	}
+
+	// A Button on a Dynamic Widget was pressed: show what was chosen as the
+	// user's own bubble and post the A2UI action, the same message the web
+	// widget sends ({message_type: 'a2ui_action', action}).
+	void _on_widget_action(Map<String, dynamic> action, String label)
+	{
+		final sid = _gen_reference_sid();
+		_seen_ids.add(sid);
+
+		_chat_controller.addMessage(CmMessageMapper.outgoing(
+			app_user_id: _current_user.id,
+			id: sid,
+			text: label.isEmpty ? (action['name'] ?? '').toString() : label,
+			type: MessageType.text,
+			profilename: _current_user.name,
+		));
+
+		Chatmaxima.instance.api.send_message(
+			session: _session,
+			query: jsonEncode({'message_type': 'a2ui_action', 'action': action}),
+			reference_sid: sid,
 		).catchError((e) => _on_send_error());
 	}
 
@@ -417,6 +442,7 @@ class _ChatMaximaChatViewState extends State<ChatMaximaChatView>
 					message,
 					current_user_id: _current_user.id,
 					accent: theme_color,
+					on_widget_action: _on_widget_action,
 				),
 			),
 			chatBubbleConfig: ChatBubbleConfiguration(

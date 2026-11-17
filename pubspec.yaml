@@ -1,6 +1,6 @@
 name: chatmaxima_flutter_sdk
 description: Embed ChatMaxima live chat (bot + human agents) inside your Android and iOS apps. Speaks the same realtime protocol as the ChatMaxima website widget.
-version: 0.1.1
+version: 0.2.0
 homepage: https://chatmaxima.com
 repository: https://github.com/techmaximaindia/chatmaxima_flutter_sdk
 publish_to: none
