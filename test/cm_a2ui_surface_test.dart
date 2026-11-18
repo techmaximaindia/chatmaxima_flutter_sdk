@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:chatmaxima_flutter_sdk/src/cm_strings.dart';
 import 'package:chatmaxima_flutter_sdk/src/services/cm_message_mapper.dart';
 import 'package:chatmaxima_flutter_sdk/src/ui/cm_a2ui_surface.dart';
+import 'package:chatmaxima_flutter_sdk/src/ui/cm_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -62,6 +64,34 @@ void main()
 		expect(sent_label.split('\n').first, 'Add to Cart'); // the bubble: the button, then what was chosen
 		expect(sent_label.split('\n').last, endsWith(': 42'));
 		expect(CmA2uiRegistry.is_answered('m_press'), isTrue);
+	});
+
+	testWidgets('dark theme: the widget takes the dark chat colours', (tester) async
+	{
+		tester.view.physicalSize = const Size(1200, 4000);
+		addTearDown(tester.view.resetPhysicalSize);
+		final payload = CmA2uiPayload.from_extra_params(fixtures['coupon_code_card'])!;
+		await tester.pumpWidget(MaterialApp(theme: ThemeData.dark(), home: Scaffold(body: SingleChildScrollView(child: CmA2uiSurface(
+			message_id: 'm_dark',
+			payload: payload,
+			accent: const Color(0xFF3B7DDD),
+			on_action: (action, label) {},
+		)))));
+		await tester.pump();
+		tester.takeException();
+		final card = tester.widgetList<Container>(find.byType(Container)).map((container) => container.decoration).whereType<BoxDecoration>().first;
+		expect(card.color, CmPalette.dark.incoming_bubble);
+	});
+
+	testWidgets('strings follow the forced language and fall back to English', (tester) async
+	{
+		CmStrings.language_code = 'ar';
+		addTearDown(() => CmStrings.language_code = null);
+		expect(CmStrings.of(null).copied, 'تم النسخ');
+		CmStrings.language_code = 'xx';
+		expect(CmStrings.of(null).copied, 'Copied');
+		CmStrings.language_code = 'pt-BR';
+		expect(CmStrings.of(null).yes, 'Sim');
 	});
 
 	test('history: a stored widget is drawn again when the conversation is reopened', ()

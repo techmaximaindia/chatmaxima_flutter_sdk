@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.0
+
+- Dark mode. The chat screen, the message field and widgets follow your app's
+  theme: when `Theme.of(context).brightness` is dark, the chat uses dark
+  surfaces and light text. Your brand colour stays the same in both.
+- Languages. The SDK's own texts (Retry, Copied, Required, call status, send
+  errors and so on) are shown in Arabic, Chinese, English, French, Hebrew,
+  Hindi, Italian, Portuguese, Russian, Spanish, Tamil and Telugu, following
+  your app's locale. To force a language, set `CmStrings.language_code = 'ar'`
+  before opening the chat; right-to-left languages then mirror the chat too.
+  What the bot says is not translated by the SDK.
+
 ## 0.2.1
 
 - A reopened conversation draws its earlier widgets again instead of showing

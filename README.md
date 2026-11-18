@@ -88,6 +88,20 @@ await Chatmaxima.instance.start_new_conversation();
 Chatmaxima.instance.dispose();
 ```
 
+## Dark mode and languages
+
+The chat follows your app's theme: with a dark `ThemeData` the chat screen,
+the message field and widgets use dark surfaces. Nothing to configure.
+
+The SDK's own texts follow your app's locale (Arabic, Chinese, English,
+French, Hebrew, Hindi, Italian, Portuguese, Russian, Spanish, Tamil, Telugu;
+anything else falls back to English). To force a language regardless of the
+app's locale:
+
+```dart
+CmStrings.language_code = 'ar'; // before opening the chat; null follows the app
+```
+
 ## Self-hosted / staging
 
 ```dart

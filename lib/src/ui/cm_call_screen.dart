@@ -3,6 +3,7 @@ import 'package:livekit_client/livekit_client.dart' as lk;
 import 'package:permission_handler/permission_handler.dart';
 
 import '../chatmaxima.dart';
+import '../cm_strings.dart';
 import '../models/cm_session.dart';
 import '../services/cm_call_service.dart';
 
@@ -47,7 +48,7 @@ class _CmCallScreenState extends State<CmCallScreen>
 		final status = await Permission.microphone.request();
 		if (!status.isGranted)
 		{
-			_fail('Microphone permission is needed to start a call.');
+			_fail(CmStrings.of(null).mic_needed);
 			return;
 		}
 
@@ -74,7 +75,7 @@ class _CmCallScreenState extends State<CmCallScreen>
 		}
 		catch (e)
 		{
-			_fail('Could not start the call. Please try again.');
+			_fail(CmStrings.of(null).call_start_error);
 		}
 	}
 
@@ -176,13 +177,13 @@ class _CmCallScreenState extends State<CmCallScreen>
 		switch (_state)
 		{
 			case _CallState.connecting:
-				return 'Connecting…';
+				return CmStrings.of(context).call_connecting;
 			case _CallState.connected:
-				return _agent_speaking ? 'Speaking…' : 'Connected';
+				return _agent_speaking ? CmStrings.of(context).call_speaking : CmStrings.of(context).call_connected;
 			case _CallState.error:
-				return 'Call failed';
+				return CmStrings.of(context).call_failed;
 			case _CallState.ended:
-				return 'Call ended';
+				return CmStrings.of(context).call_ended;
 		}
 	}
 

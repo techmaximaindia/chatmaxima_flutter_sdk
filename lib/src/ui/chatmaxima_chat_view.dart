@@ -7,10 +7,12 @@ import 'package:uuid/uuid.dart';
 
 import '../chatmaxima.dart';
 import '../cm_config.dart';
+import '../cm_strings.dart';
 import '../models/cm_session.dart';
 import '../services/cm_message_mapper.dart';
 import '../services/cm_socket_client.dart';
 import 'cm_a2ui_surface.dart';
+import 'cm_palette.dart';
 import 'cm_custom_message.dart';
 
 /// Embeddable ChatMaxima chat surface (no Scaffold / AppBar of its own).
@@ -59,8 +61,8 @@ class _ChatMaximaChatViewState extends State<ChatMaximaChatView>
 
 		_current_user = ChatUser(
 			id: _session.end_user_id,
-			name: _config.lead_info?.name ?? 'You',
-			chatmaxima_user_name: 'You',
+			name: _config.lead_info?.name ?? CmStrings.of(null).you,
+			chatmaxima_user_name: CmStrings.of(null).you,
 			platform: 'mobile_app',
 		);
 
@@ -360,7 +362,7 @@ class _ChatMaximaChatViewState extends State<ChatMaximaChatView>
 	{
 		if (!mounted) return;
 		ScaffoldMessenger.of(context).showSnackBar(
-			const SnackBar(content: Text('Message failed to send. Please try again.')),
+			SnackBar(content: Text(CmStrings.of(context).send_error)),
 		);
 	}
 
@@ -386,11 +388,10 @@ class _ChatMaximaChatViewState extends State<ChatMaximaChatView>
 
 		// Distinct surfaces so bubbles never blend into the background:
 		// chat background = light grey, incoming bubble = white, outgoing = brand.
-		const chat_background = Color(0xFFECEFF3);
-		const incoming_bubble = Color(0xFFFFFFFF);
-		const incoming_text = Color(0xFF1F2937);
+		// Light or dark after the host app's theme.
+		final palette = CmPalette.of(context);
 
-		return ChatView(
+		final chat_view = ChatView(
 			currentUser: _current_user,
 			chatController: _chat_controller,
 			onSendTap: _on_send_tap,
@@ -408,8 +409,8 @@ class _ChatMaximaChatViewState extends State<ChatMaximaChatView>
 				enableTranslateMessage: false,        // long-press: keep only Reply + Copy
 				enableTicketFromMessage: false,
 			),
-			chatBackgroundConfig: const ChatBackgroundConfiguration(
-				backgroundColor: chat_background,
+			chatBackgroundConfig: ChatBackgroundConfiguration(
+				backgroundColor: palette.chat_background,
 			),
 			typeIndicatorConfig: TypeIndicatorConfiguration(
 				flashingCircleDarkColor: theme_color,
@@ -418,7 +419,7 @@ class _ChatMaximaChatViewState extends State<ChatMaximaChatView>
 			repliedMessageConfig: RepliedMessageConfiguration(
 				backgroundColor: theme_color.withValues(alpha: 0.12),
 				verticalBarColor: theme_color,
-				textStyle: const TextStyle(color: Color(0xFF374151), fontSize: 13),
+				textStyle: TextStyle(color: palette.secondary_text, fontSize: 13),
 				replyTitleTextStyle: TextStyle(color: theme_color, fontWeight: FontWeight.w600, fontSize: 12),
 			),
 			sendMessageConfig: SendMessageConfiguration(
@@ -430,18 +431,18 @@ class _ChatMaximaChatViewState extends State<ChatMaximaChatView>
 				// Replace the camera with an all-type file picker (the icon's own
 				// gesture handles the tap; the fork's button is a no-op).
 				imagePickerIconsConfig: ImagePickerIconsConfiguration(
-					galleryIconColor: const Color(0xFF6B7280),
+					galleryIconColor: palette.icon,
 					cameraImagePickerIcon: GestureDetector(
 						onTap: _select_file,
-						child: const Icon(Icons.attach_file, color: Color(0xFF6B7280)),
+						child: Icon(Icons.attach_file, color: palette.icon),
 					),
 				),
 				defaultSendButtonColor: theme_color,
-				textFieldBackgroundColor: Theme.of(context).cardColor,
-				textFieldConfig: const TextFieldConfiguration(
+				textFieldBackgroundColor: palette.field_background,
+				textFieldConfig: TextFieldConfiguration(
 					// Ensure typed text + hint are visible against the field background.
-					textStyle: TextStyle(color: Color(0xFF1F2937), fontSize: 15),
-					hintStyle: TextStyle(color: Color(0xFF9CA3AF), fontSize: 15),
+					textStyle: TextStyle(color: palette.incoming_text, fontSize: 15),
+					hintStyle: TextStyle(color: palette.hint, fontSize: 15),
 				),
 			),
 			messageConfig: MessageConfiguration(
@@ -459,11 +460,23 @@ class _ChatMaximaChatViewState extends State<ChatMaximaChatView>
 					color: theme_color,
 					textStyle: TextStyle(color: on_theme, fontSize: 15),
 				),
-				inComingChatBubbleConfig: const ChatBubble(
-					color: incoming_bubble,
-					textStyle: TextStyle(color: incoming_text, fontSize: 15),
+				inComingChatBubbleConfig: ChatBubble(
+					color: palette.incoming_bubble,
+					textStyle: TextStyle(color: palette.incoming_text, fontSize: 15),
 				),
 			),
+		);
+
+		// An app that forces the SDK's language (CmStrings.language_code) gets the
+		// matching reading direction too; otherwise the app's own direction applies.
+		final forced_language = CmStrings.language_code ?? '';
+		if (forced_language.isEmpty)
+		{
+			return chat_view;
+		}
+		return Directionality(
+			textDirection: CmStrings.is_rtl(forced_language.toLowerCase().split(RegExp('[-_]')).first) ? TextDirection.rtl : TextDirection.ltr,
+			child: chat_view,
 		);
 	}
 }

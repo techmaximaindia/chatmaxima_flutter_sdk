@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../chatmaxima.dart';
+import '../cm_strings.dart';
 import '../models/cm_lead_info.dart';
 import '../models/cm_session.dart';
 import '../services/cm_api_client.dart';
@@ -101,12 +102,12 @@ class _ChatMaximaChatScreenState extends State<ChatMaximaChatScreen>
 			{
 				if (snapshot.connectionState == ConnectionState.waiting)
 				{
-					return _scaffold(widget.title ?? 'Chat', const Center(child: CircularProgressIndicator()));
+					return _scaffold(widget.title ?? CmStrings.of(context).chat, const Center(child: CircularProgressIndicator()));
 				}
 
 				if (snapshot.hasError)
 				{
-					return _scaffold(widget.title ?? 'Chat', _error_view(snapshot.error));
+					return _scaffold(widget.title ?? CmStrings.of(context).chat, _error_view(snapshot.error));
 				}
 
 				final session = snapshot.data!;
@@ -121,7 +122,7 @@ class _ChatMaximaChatScreenState extends State<ChatMaximaChatScreen>
 								// Voice-agent call (same path as the web widget).
 								if (site.voice_agent_enabled)
 									IconButton(
-										tooltip: 'Call',
+										tooltip: CmStrings.of(context).call,
 										icon: const Icon(Icons.call),
 										onPressed: () => Navigator.push(context, MaterialPageRoute(
 											builder: (_) => CmCallScreen(session: session),
@@ -172,7 +173,7 @@ class _ChatMaximaChatScreenState extends State<ChatMaximaChatScreen>
 
 	Widget _error_view(Object? error)
 	{
-		final message = error is CmApiException ? error.message : 'Could not start chat. Please try again.';
+		final message = error is CmApiException ? error.message : CmStrings.of(context).start_error;
 		return Center(
 			child: Padding(
 				padding: const EdgeInsets.all(24),
@@ -183,7 +184,7 @@ class _ChatMaximaChatScreenState extends State<ChatMaximaChatScreen>
 						const SizedBox(height: 12),
 						Text(message, textAlign: TextAlign.center),
 						const SizedBox(height: 16),
-						FilledButton(onPressed: _retry, child: const Text('Retry')),
+						FilledButton(onPressed: _retry, child: Text(CmStrings.of(context).retry)),
 					],
 				),
 			),

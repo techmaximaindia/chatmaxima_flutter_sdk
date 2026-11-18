@@ -2,7 +2,9 @@ import 'package:chatview/chatview.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../cm_strings.dart';
 import 'cm_a2ui_surface.dart';
+import 'cm_palette.dart';
 import 'cm_voice_player.dart';
 
 const _audio_exts = ['mp3', 'wav', 'aac', 'm4a', 'ogg', 'oga', 'opus', 'flac', 'amr', 'wma', 'caf', 'aiff', 'aif', '3ga'];
@@ -52,7 +54,7 @@ Widget cm_custom_message_builder(Message message, {required String current_user_
 					if (caption.isNotEmpty)
 						Padding(
 							padding: const EdgeInsets.only(bottom: 8),
-							child: Text(caption, style: const TextStyle(fontSize: 14, color: Color(0xFF1F2937))),
+							child: Builder(builder: (context) => Text(caption, style: TextStyle(fontSize: 14, color: CmPalette.of(context).incoming_text))),
 						),
 					CmA2uiSurface(
 						key: ValueKey('cm_a2ui_$widget_id'),
@@ -144,7 +146,7 @@ Widget _file_card(String url, String caption)
 											children: [
 												Icon(Icons.open_in_new_rounded, size: 12, color: icon_color),
 												const SizedBox(width: 4),
-												Text('Tap to open', style: TextStyle(fontSize: 11, color: icon_color)),
+												Builder(builder: (context) => Text(CmStrings.of(context).tap_to_open, style: TextStyle(fontSize: 11, color: icon_color))),
 											],
 										),
 										if (caption.isNotEmpty)

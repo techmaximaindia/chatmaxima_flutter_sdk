@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../cm_strings.dart';
+import 'cm_palette.dart';
+
 /// Renders a ChatMaxima Dynamic Widget: an A2UI v1.0 surface the bot sends as
 /// `extra_params.a2ui.messages` (createSurface / updateComponents /
 /// updateDataModel). Mirrors the web widget's renderer for the components the
@@ -232,15 +235,16 @@ class _CmA2uiSurfaceState extends State<CmA2uiSurface>
 		if (value is! String) return null;
 		final text = value.trim();
 		final scheme = Theme.of(context).colorScheme;
+		final palette = CmPalette.of(context); // the chat's own light or dark colours, so a widget matches its bubble
 		switch (text)
 		{
 			case r'$primary': return widget.accent;
 			case r'$on-primary': return widget.on_accent;
-			case r'$text': return scheme.onSurface;
-			case r'$muted': return scheme.onSurface.withValues(alpha: 0.6);
-			case r'$surface': return scheme.surface;
-			case r'$subtle': return scheme.onSurface.withValues(alpha: 0.06);
-			case r'$border': return scheme.onSurface.withValues(alpha: 0.14);
+			case r'$text': return palette.incoming_text;
+			case r'$muted': return palette.incoming_text.withValues(alpha: 0.6);
+			case r'$surface': return palette.incoming_bubble;
+			case r'$subtle': return palette.incoming_text.withValues(alpha: 0.06);
+			case r'$border': return palette.incoming_text.withValues(alpha: 0.14);
 			case r'$success': return const Color(0xFF16A34A);
 			case r'$warning': return const Color(0xFFD97706);
 			case r'$danger': return scheme.error;
@@ -712,11 +716,11 @@ class _CmA2uiSurfaceState extends State<CmA2uiSurface>
 			if (call == 'required')
 			{
 				final is_empty = value == null || value == false || (value is List && value.isEmpty) || (value is! bool && value is! List && text.isEmpty);
-				if (is_empty) return 'Required';
+				if (is_empty) return CmStrings.of(context).required;
 			}
 			else if (call == 'email' && text.isNotEmpty)
 			{
-				if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(text)) return 'Enter a valid email';
+				if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(text)) return CmStrings.of(context).valid_email;
 			}
 			else if (call == 'regex' && text.isNotEmpty && args['pattern'] is String)
 			{
@@ -729,7 +733,7 @@ class _CmA2uiSurfaceState extends State<CmA2uiSurface>
 				{
 					matches = true; // an unusable pattern never blocks the visitor
 				}
-				if (!matches) return 'Check this value';
+				if (!matches) return CmStrings.of(context).check_value;
 			}
 		}
 		return null;
@@ -820,7 +824,7 @@ class _CmA2uiSurfaceState extends State<CmA2uiSurface>
 		}
 		String readable(dynamic value)
 		{
-			if (value is bool) return value ? 'Yes' : 'No';
+			if (value is bool) return value ? CmStrings.of(context).yes : CmStrings.of(context).no;
 			if (value is List) return value.map((item) => option_labels[item.toString()] ?? item.toString()).join(', ');
 			if (value == null) return '';
 			return option_labels[value.toString()] ?? value.toString();
@@ -868,7 +872,7 @@ class _CmA2uiSurfaceState extends State<CmA2uiSurface>
 			children: <Widget>[
 				if (is_copied) Padding(padding: const EdgeInsets.only(right: 6), child: Icon(Icons.check, size: 16, color: foreground_fallback)),
 				Flexible(child: Text(
-					is_copied ? 'Copied' : label,
+					is_copied ? CmStrings.of(context).copied : label,
 					textAlign: TextAlign.center,
 					style: label_component == null ? TextStyle(color: foreground_fallback, fontWeight: FontWeight.w600) : _text_style(label_component, fallback_color: foreground_fallback).copyWith(fontWeight: _style(label_component)['fontWeight'] == null ? FontWeight.w600 : null),
 				)),
