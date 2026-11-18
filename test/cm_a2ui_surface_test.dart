@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:chatmaxima_flutter_sdk/src/services/cm_message_mapper.dart';
 import 'package:chatmaxima_flutter_sdk/src/ui/cm_a2ui_surface.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -58,7 +59,28 @@ void main()
 		expect(sent!['name'], 'add_to_cart');
 		expect(sent!['surfaceId'], startsWith('cmw_'));
 		expect((sent!['context'] as Map)['size'], ['42']);
-		expect(sent_label, 'Add to Cart');
+		expect(sent_label.split('\n').first, 'Add to Cart'); // the bubble: the button, then what was chosen
+		expect(sent_label.split('\n').last, endsWith(': 42'));
 		expect(CmA2uiRegistry.is_answered('m_press'), isTrue);
+	});
+
+	test('history: a stored widget is drawn again when the conversation is reopened', ()
+	{
+		final message = CmMessageMapper.from_history(<String, dynamic>{
+			'cb_message_id': 'h_1',
+			'cb_message_type': 'outgoing',
+			'cb_message_text': 'Product card text',
+			'cb_message_options': jsonEncode(fixtures['product_card']),
+		}, app_user_id: 'me');
+		expect(message.message, '${CmA2uiRegistry.marker}h_1');
+		expect(CmA2uiRegistry.get('h_1'), isNotNull);
+
+		final plain = CmMessageMapper.from_history(<String, dynamic>{
+			'cb_message_id': 'h_2',
+			'cb_message_type': 'outgoing',
+			'cb_message_text': 'Hello',
+			'cb_message_options': '{"buttons":[]}',
+		}, app_user_id: 'me');
+		expect(plain.message, 'Hello');
 	});
 }

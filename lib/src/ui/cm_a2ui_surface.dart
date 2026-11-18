@@ -785,7 +785,61 @@ class _CmA2uiSurfaceState extends State<CmA2uiSurface>
 			'sourceComponentId': component['id'].toString(),
 			'timestamp': DateTime.now().toUtc().toIso8601String(),
 			'context': context_values,
-		}, label);
+		}, _response_summary(label, context_values));
+	}
+
+	// What the user's own bubble shows for a pressed button: the button's label, then one
+	// "Field: value" line per answer sent with it (the website widget shows the same as a card).
+	String _response_summary(String label, Map<String, dynamic> context_values)
+	{
+		final field_labels = <String, String>{};
+		final option_labels = <String, String>{};
+		for (final input in _inputs())
+		{
+			final path = _binding(input['value']);
+			if (path != null)
+			{
+				final key = path.split('/').where((token) => token.isNotEmpty).toList();
+				final field_label = _resolve_string(input['label']).trim();
+				if (key.isNotEmpty && field_label.isNotEmpty)
+				{
+					field_labels[key.last] = field_label;
+				}
+			}
+			final options = input['options'];
+			if (options is List)
+			{
+				for (final option in options)
+				{
+					if (option is Map && option['value'] != null && option['label'] != null)
+					{
+						option_labels[option['value'].toString()] = _resolve_string(option['label']);
+					}
+				}
+			}
+		}
+		String readable(dynamic value)
+		{
+			if (value is bool) return value ? 'Yes' : 'No';
+			if (value is List) return value.map((item) => option_labels[item.toString()] ?? item.toString()).join(', ');
+			if (value == null) return '';
+			return option_labels[value.toString()] ?? value.toString();
+		}
+		final lines = <String>[];
+		if (label.isNotEmpty) lines.add(label);
+		context_values.forEach((key, value)
+		{
+			if (key == 'button') return; // the label line already says which button
+			final text = readable(value).trim();
+			if (text.isEmpty) return;
+			if (key == 'item' || key == 'value')
+			{
+				lines.add(text);
+				return;
+			}
+			lines.add('${field_labels[key] ?? key}: $text');
+		});
+		return lines.join('\n');
 	}
 
 	Widget _button(Map<String, dynamic> component, bool in_row)

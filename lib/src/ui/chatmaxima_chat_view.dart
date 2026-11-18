@@ -10,6 +10,7 @@ import '../cm_config.dart';
 import '../models/cm_session.dart';
 import '../services/cm_message_mapper.dart';
 import '../services/cm_socket_client.dart';
+import 'cm_a2ui_surface.dart';
 import 'cm_custom_message.dart';
 
 /// Embeddable ChatMaxima chat surface (no Scaffold / AppBar of its own).
@@ -97,13 +98,21 @@ class _ChatMaximaChatViewState extends State<ChatMaximaChatView>
 				_seed_first_message();
 				return;
 			}
-			for (final record in records)
+			// A widget the conversation has moved past is shown locked, as on the
+			// website widget; only a widget that is the latest message stays usable.
+			for (int index = 0; index < records.length; index++)
 			{
+				final record = records[index];
 				// Remember ids so a live socket echo of a historical message
 				// is not appended a second time.
 				final dedup = CmMessageMapper.history_dedup_id(record);
 				if (dedup.isNotEmpty) _seen_ids.add(dedup);
-				_chat_controller.addMessage(CmMessageMapper.from_history(record, app_user_id: _current_user.id));
+				final message = CmMessageMapper.from_history(record, app_user_id: _current_user.id);
+				if (index < records.length - 1 && message.message.startsWith(CmA2uiRegistry.marker))
+				{
+					CmA2uiRegistry.mark_answered(message.id);
+				}
+				_chat_controller.addMessage(message);
 			}
 		}
 		catch (_)

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.1
+
+- A reopened conversation draws its earlier widgets again instead of showing
+  them as text. Widgets the conversation has moved past are shown locked; a
+  widget that is the latest message can still be answered.
+- When a widget button is pressed, your own bubble now shows the button and
+  what was chosen or filled in (for example "Add to Cart" and "Size: 42"),
+  not the button's label alone.
+
 ## 0.2.0
 
 - Dynamic Widgets. A bot can now show a widget from the ChatMaxima Widget

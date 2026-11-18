@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:chatview/chatview.dart';
 
 import '../ui/cm_a2ui_surface.dart';
@@ -170,9 +172,30 @@ class CmMessageMapper
 		final media_url = (json['cb_media_url'] ?? json['media_url'] ?? '').toString();
 		final text = (json['cb_message_text'] ?? json['text'] ?? json['answer'] ?? '').toString();
 		final type = _resolve_type(media_type);
+		final history_id = (json['cb_message_id'] ?? json['cb_reference_messsage_sid'] ?? json['message_id'] ?? DateTime.now().microsecondsSinceEpoch).toString();
+
+		// A Dynamic Widget sent earlier: its payload is stored with the message
+		// (cb_message_options.a2ui), so a reopened conversation draws it again.
+		final widget_payload = is_user ? null : CmA2uiPayload.from_extra_params(_message_options(json['cb_message_options']));
+		if (widget_payload != null)
+		{
+			CmA2uiRegistry.put(history_id, widget_payload);
+			return Message(
+				id: history_id,
+				message: '${CmA2uiRegistry.marker}$history_id',
+				createdAt: _parse_history_date(json['cb_message_datetime']),
+				sendBy: agent_user_id,
+				messageType: MessageType.custom,
+				status: MessageStatus.delivered,
+				profilename: (json['profile_name'] ?? '').toString(),
+				chatmaxima_profile_image: (json['profile_image'] ?? '').toString(),
+				message_id: (json['cb_message_id'] ?? '').toString(),
+				image_text_message: widget_payload.hide_text ? '' : text,
+			);
+		}
 
 		return Message(
-			id: (json['cb_message_id'] ?? json['cb_reference_messsage_sid'] ?? json['message_id'] ?? DateTime.now().microsecondsSinceEpoch).toString(),
+			id: history_id,
 			message: (type == MessageType.image || type == MessageType.custom) ? media_url : text,
 			createdAt: _parse_history_date(json['cb_message_datetime']),
 			sendBy: is_user ? app_user_id : agent_user_id,
@@ -183,6 +206,24 @@ class CmMessageMapper
 			message_id: (json['cb_message_id'] ?? '').toString(),
 			image_text_message: type == MessageType.image ? text : '',
 		);
+	}
+
+	// cb_message_options arrives as a JSON string (or already decoded).
+	static dynamic _message_options(dynamic value)
+	{
+		if (value is Map) return value;
+		if (value is String && value.isNotEmpty)
+		{
+			try
+			{
+				return jsonDecode(value);
+			}
+			catch (_)
+			{
+				return null;
+			}
+		}
+		return null;
 	}
 
 	/// Best-effort id for de-duping a history record against live socket echoes.
