@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.1
+
+- A reopened conversation shows your earlier answers to a widget as they
+  were sent (the button and what was chosen), not as a "Form submitted" record,
+  with your name on them.
+- Messages loaded from the conversation history show the device's local time.
+- The text a bot sends with a widget is drawn in a chat bubble and stays
+  inside the screen, as does the widget below it.
+- Bold and italic marks in a widget's text and in the text above it are drawn
+  as bold and italic, not as asterisks.
+
 ## 0.3.0
 
 - Dark mode. The chat screen, the message field and widgets follow your app's

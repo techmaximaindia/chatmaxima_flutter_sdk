@@ -47,25 +47,40 @@ Widget cm_custom_message_builder(Message message, {required String current_user_
 		if (payload != null)
 		{
 			final caption = message.image_text_message;
-			return Column(
-				mainAxisSize: MainAxisSize.min,
-				crossAxisAlignment: CrossAxisAlignment.start,
-				children: [
-					if (caption.isNotEmpty)
-						Padding(
-							padding: const EdgeInsets.only(bottom: 8),
-							child: Builder(builder: (context) => Text(caption, style: TextStyle(fontSize: 14, color: CmPalette.of(context).incoming_text))),
-						),
-					CmA2uiSurface(
-						key: ValueKey('cm_a2ui_$widget_id'),
-						message_id: widget_id,
-						payload: payload,
-						accent: accent,
-						on_accent: on_accent,
-						on_action: on_widget_action ?? (action, label) {},
+			return Builder(builder: (context)
+			{
+				final palette = CmPalette.of(context);
+				// Keep the text and the widget inside the screen beside the avatar,
+				// whatever width the chat list offers a custom message.
+				final available = MediaQuery.of(context).size.width - 96;
+				final max_width = available < 320 ? (available < 200 ? 200.0 : available) : 320.0;
+				final caption_style = TextStyle(fontSize: 15, color: palette.incoming_text);
+				return ConstrainedBox(
+					constraints: BoxConstraints(maxWidth: max_width),
+					child: Column(
+						mainAxisSize: MainAxisSize.min,
+						crossAxisAlignment: CrossAxisAlignment.start,
+						children: [
+							if (caption.isNotEmpty)
+								// The text sent with a widget, drawn as the bot's other bubbles are.
+								Container(
+									margin: const EdgeInsets.only(bottom: 8),
+									padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+									decoration: BoxDecoration(color: palette.incoming_bubble, borderRadius: BorderRadius.circular(12)),
+									child: Text.rich(TextSpan(children: cm_inline_markdown(caption, caption_style)), style: caption_style),
+								),
+							CmA2uiSurface(
+								key: ValueKey('cm_a2ui_$widget_id'),
+								message_id: widget_id,
+								payload: payload,
+								accent: accent,
+								on_accent: on_accent,
+								on_action: on_widget_action ?? (action, label) {},
+							),
+						],
 					),
-				],
-			);
+				);
+			});
 		}
 		return const SizedBox.shrink(); // the app was restarted: the payload is gone, history shows the text
 	}

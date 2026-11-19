@@ -113,4 +113,33 @@ void main()
 		}, app_user_id: 'me');
 		expect(plain.message, 'Hello');
 	});
+
+	test('history: the answer to a widget reads as it did when it was sent', ()
+	{
+		final widget = CmA2uiPayload.from_extra_params(fixtures['product_card']);
+		final answer = CmMessageMapper.from_history(<String, dynamic>{
+			'cb_message_id': 'h_3',
+			'cb_message_type': 'incoming',
+			'cb_message_text': 'Form submitted (add_to_cart):\nsize: 42',
+			'cb_message_datetime': '2026-11-19 07:21:00',
+		}, app_user_id: 'me', previous_widget: widget, user_name: 'Guest');
+		expect(answer.message, 'Add to Cart\nsize: 42');
+		expect(answer.profilename, 'Guest');
+		expect(answer.createdAt, DateTime.utc(2026, 11, 19, 7, 21).toLocal()); // stored in UTC, shown in the device's time
+
+		// No widget at hand: the button's name is made readable, the empty answer is left out.
+		expect(CmMessageMapper.widget_answer_text('Form submitted (download_ticket):', null), 'Download ticket');
+		expect(CmMessageMapper.widget_answer_text('Form submitted (contact):\nbutton: Send a Message\nvalue: contact\nnote: (empty)', null), 'Send a Message\ncontact');
+		expect(CmMessageMapper.widget_answer_text('Hi there', widget), 'Hi there');
+	});
+
+	test('text: bold and italic marks become styled spans', ()
+	{
+		const base = TextStyle(fontSize: 14);
+		final spans = cm_inline_markdown('**Tabbed Interface** has *three* tabs, 2 * 3 = 6', base).cast<TextSpan>();
+		expect(spans.map((span) => span.text).join(), 'Tabbed Interface has three tabs, 2 * 3 = 6');
+		expect(spans[0].style?.fontWeight, FontWeight.w700);
+		expect(spans[2].style?.fontStyle, FontStyle.italic);
+		expect(cm_inline_markdown('Plain text', base).length, 1);
+	});
 }

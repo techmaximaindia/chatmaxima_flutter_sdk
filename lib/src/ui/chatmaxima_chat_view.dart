@@ -102,6 +102,7 @@ class _ChatMaximaChatViewState extends State<ChatMaximaChatView>
 			}
 			// A widget the conversation has moved past is shown locked, as on the
 			// website widget; only a widget that is the latest message stays usable.
+			CmA2uiPayload? last_widget;
 			for (int index = 0; index < records.length; index++)
 			{
 				final record = records[index];
@@ -109,10 +110,14 @@ class _ChatMaximaChatViewState extends State<ChatMaximaChatView>
 				// is not appended a second time.
 				final dedup = CmMessageMapper.history_dedup_id(record);
 				if (dedup.isNotEmpty) _seen_ids.add(dedup);
-				final message = CmMessageMapper.from_history(record, app_user_id: _current_user.id);
-				if (index < records.length - 1 && message.message.startsWith(CmA2uiRegistry.marker))
+				final message = CmMessageMapper.from_history(record, app_user_id: _current_user.id, previous_widget: last_widget, user_name: _current_user.name);
+				if (message.message.startsWith(CmA2uiRegistry.marker))
 				{
-					CmA2uiRegistry.mark_answered(message.id);
+					last_widget = CmA2uiRegistry.get(message.id); // the next user record may be the answer to this widget
+					if (index < records.length - 1)
+					{
+						CmA2uiRegistry.mark_answered(message.id);
+					}
 				}
 				_chat_controller.addMessage(message);
 			}

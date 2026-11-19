@@ -68,6 +68,43 @@ class CmA2uiPayload
 		return CmA2uiPayload(surface_id: surface_id, components: components, data: data, hide_text: a2ui['hide_text'] == true);
 	}
 
+	/// The text on the Button that sends [action_name] to the bot, or '' when
+	/// this widget has no such button. Used to rebuild the user's answer from
+	/// the conversation history.
+	String button_label(String action_name)
+	{
+		for (final component in components.values)
+		{
+			if (component['component'] != 'Button') continue;
+			final action = component['action'];
+			if (action is! Map || action['event'] is! Map) continue;
+			if (((action['event'] as Map)['name'] ?? '').toString() != action_name) continue;
+			final label_component = components[(component['child'] ?? '').toString()];
+			if (label_component == null) return '';
+			final text = label_component['text'];
+			if (text is String) return text.trim();
+			if (text is Map && text['@path'] is String)
+			{
+				dynamic current = data;
+				for (final token in (text['@path'] as String).split('/'))
+				{
+					if (token.isEmpty) continue;
+					if (current is Map)
+					{
+						current = current[token];
+					}
+					else
+					{
+						return '';
+					}
+				}
+				if (current is String || current is num) return current.toString().trim();
+			}
+			return '';
+		}
+		return '';
+	}
+
 	static Map<String, dynamic> _deep_copy(Map source)
 	{
 		final copy = <String, dynamic>{};
@@ -84,6 +121,39 @@ class CmA2uiPayload
 		if (value is List) return value.map(_copy_value).toList();
 		return value;
 	}
+}
+
+final RegExp _cm_inline_markdown_pattern = RegExp(r'\*\*(.+?)\*\*|__(.+?)__|(?<![\w*])\*(?!\s)(.+?)(?<!\s)\*(?![\w*])');
+
+/// The bold and italic marks an AI reply carries (**bold**, __bold__, *italic*)
+/// as styled spans, so they are not shown as literal asterisks. Everything
+/// else in [text] is kept as written.
+List<InlineSpan> cm_inline_markdown(String text, TextStyle base)
+{
+	final spans = <InlineSpan>[];
+	int cursor = 0;
+	for (final match in _cm_inline_markdown_pattern.allMatches(text))
+	{
+		if (match.start > cursor)
+		{
+			spans.add(TextSpan(text: text.substring(cursor, match.start)));
+		}
+		final bold = match.group(1) ?? match.group(2);
+		if (bold != null)
+		{
+			spans.add(TextSpan(text: bold, style: const TextStyle(fontWeight: FontWeight.w700)));
+		}
+		else
+		{
+			spans.add(TextSpan(text: match.group(3), style: const TextStyle(fontStyle: FontStyle.italic)));
+		}
+		cursor = match.end;
+	}
+	if (cursor < text.length)
+	{
+		spans.add(TextSpan(text: text.substring(cursor)));
+	}
+	return spans;
 }
 
 /// Holds the widgets received in this app session, keyed by the chat message
@@ -600,7 +670,8 @@ class _CmA2uiSurfaceState extends State<CmA2uiSurface>
 		final style = _style(component);
 		final text = _cased(_resolve_string(component['text']), style['textTransform']);
 		if (text.isEmpty) return const SizedBox.shrink();
-		return _boxed(component, Text(text, style: _text_style(component), textAlign: _text_align(style['textAlign'])));
+		final text_style = _text_style(component);
+		return _boxed(component, Text.rich(TextSpan(children: cm_inline_markdown(text, text_style)), style: text_style, textAlign: _text_align(style['textAlign'])));
 	}
 
 	Widget _image(Map<String, dynamic> component)

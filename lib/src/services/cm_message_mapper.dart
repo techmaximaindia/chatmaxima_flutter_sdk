@@ -164,7 +164,11 @@ class CmMessageMapper
 	/// Map one history record (Elasticsearch _source from get_whatsapp_messages)
 	/// into a [Message]. `cb_message_type == 'incoming'` is the app user; bot /
 	/// outgoing / agent records are attributed to [agentUserId].
-	static Message from_history(Map<String, dynamic> json, {required String app_user_id})
+	///
+	/// [previous_widget] is the Dynamic Widget shown just before this record, so
+	/// the user's answer to it reads as it did when it was sent. [user_name] is
+	/// the app user's display name, as on the bubbles sent in this session.
+	static Message from_history(Map<String, dynamic> json, {required String app_user_id, CmA2uiPayload? previous_widget, String user_name = ''})
 	{
 		final direction = (json['cb_message_type'] ?? '').toString().toLowerCase();
 		final is_user = direction == 'incoming';
@@ -196,16 +200,71 @@ class CmMessageMapper
 
 		return Message(
 			id: history_id,
-			message: (type == MessageType.image || type == MessageType.custom) ? media_url : text,
+			message: (type == MessageType.image || type == MessageType.custom) ? media_url : (is_user ? widget_answer_text(text, previous_widget) : text),
 			createdAt: _parse_history_date(json['cb_message_datetime']),
 			sendBy: is_user ? app_user_id : agent_user_id,
 			messageType: type,
 			status: MessageStatus.delivered,
-			profilename: is_user ? '' : (json['profile_name'] ?? '').toString(),
+			profilename: is_user ? user_name : (json['profile_name'] ?? '').toString(),
 			chatmaxima_profile_image: (json['profile_image'] ?? '').toString(),
 			message_id: (json['cb_message_id'] ?? '').toString(),
 			image_text_message: type == MessageType.image ? text : '',
 		);
+	}
+
+	static final RegExp _widget_answer_pattern = RegExp(r'^Form submitted \((.*?)\):\s*');
+
+	/// A pressed widget button is stored as "Form submitted (add_to_cart):" and
+	/// one "field: value" line per answer. Turn that record back into what the
+	/// user's bubble showed when it was sent: the button's label, then the
+	/// answers. Any other text is returned unchanged.
+	static String widget_answer_text(String text, CmA2uiPayload? previous_widget)
+	{
+		final match = _widget_answer_pattern.firstMatch(text);
+		if (match == null) return text;
+
+		final action_name = (match.group(1) ?? '').trim();
+		String label = '';
+		final lines = <String>[];
+		for (final raw_line in text.substring(match.end).split('\n'))
+		{
+			final line = raw_line.trim();
+			final split_at = line.indexOf(':');
+			if (split_at <= 0) continue;
+			final field = line.substring(0, split_at).trim();
+			final value = line.substring(split_at + 1).trim();
+			if (value.isEmpty || value == '(empty)') continue;
+			if (field == 'button')
+			{
+				label = value; // the pressed button's own label, when the widget sent it
+				continue;
+			}
+			if (field == 'item' || field == 'value')
+			{
+				lines.add(value);
+				continue;
+			}
+			lines.add('$field: $value');
+		}
+		if (label.isEmpty && previous_widget != null)
+		{
+			label = previous_widget.button_label(action_name);
+		}
+		if (label.isEmpty)
+		{
+			label = _readable_name(action_name);
+		}
+		if (label.isNotEmpty) lines.insert(0, label);
+		if (lines.isEmpty) return text;
+		return lines.join('\n');
+	}
+
+	// "download_ticket" -> "Download ticket", for a button whose widget is not at hand.
+	static String _readable_name(String action_name)
+	{
+		final words = action_name.replaceAll(RegExp(r'[_\-]+'), ' ').trim();
+		if (words.isEmpty) return '';
+		return words[0].toUpperCase() + words.substring(1);
 	}
 
 	// cb_message_options arrives as a JSON string (or already decoded).
@@ -238,10 +297,16 @@ class CmMessageMapper
 	{
 		if (value == null) return DateTime.now();
 		if (value is int) return DateTime.fromMillisecondsSinceEpoch(value * 1000);
-		final s = value.toString();
+		final s = value.toString().trim();
 		final epoch = int.tryParse(s);
 		if (epoch != null) return DateTime.fromMillisecondsSinceEpoch(epoch * 1000);
-		return DateTime.tryParse(s) ?? DateTime.now();
+		// Stored times are UTC, with or without a zone on the string. The chat
+		// shows the time as given, so hand it the device's local time, as it gets
+		// for the messages of this session.
+		final has_zone = RegExp(r'(Z|[+\-]\d{2}:?\d{2})$').hasMatch(s);
+		final parsed = DateTime.tryParse(has_zone ? s : '${s.replaceFirst(' ', 'T')}Z');
+		if (parsed == null) return DateTime.tryParse(s) ?? DateTime.now();
+		return parsed.toLocal();
 	}
 
 	static MessageType _resolve_type(String media_type)
