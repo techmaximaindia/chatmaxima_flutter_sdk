@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.2
+
+- Tabs in a widget are drawn as tabs: the headers sit in a strip and tapping
+  one shows its section, as on the website widget. A form that fails its
+  checks opens the tab holding the field to fix.
+- Popups (Modal) are drawn: the button opens the popup, and a button inside
+  that answers the bot closes it.
+- A row of buttons that does not fit on one line moves the rest to the next
+  line. It no longer runs past the edge of the widget.
+
 ## 0.3.1
 
 - A reopened conversation shows your earlier answers to a widget as they

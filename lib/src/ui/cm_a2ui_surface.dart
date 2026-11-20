@@ -9,9 +9,9 @@ import 'cm_palette.dart';
 /// `extra_params.a2ui.messages` (createSurface / updateComponents /
 /// updateDataModel). Mirrors the web widget's renderer for the components the
 /// Widget Library produces: Card, Column, Row, List, Text, Image, Icon,
-/// Divider, Button, TextField, ChoicePicker, DateTimeInput, CheckBox, Slider.
-/// Tabs draw their panels one after another; Modal, Video and AudioPlayer are
-/// not drawn.
+/// Divider, Button, TextField, ChoicePicker, DateTimeInput, CheckBox, Slider,
+/// Tabs (one panel at a time) and Modal (its trigger opens a popup). Video and
+/// AudioPlayer are not drawn.
 ///
 /// The server has already checked the layout, expanded repeated lists and kept
 /// only an allowlist of style properties, so this reads plain values. Unknown
@@ -210,6 +210,10 @@ class _CmA2uiSurfaceState extends State<CmA2uiSurface>
 	final Map<String, TextEditingController> _controllers = <String, TextEditingController>{};
 	bool _show_errors = false;
 	String _copied_id = '';
+	final Map<String, int> _active_tabs = <String, int>{}; // Tabs component id -> the tab on show
+	final Map<String, Map<String, dynamic>> _modal_of_trigger = <String, Map<String, dynamic>>{}; // trigger component id -> its Modal
+	final ValueNotifier<int> _revision = ValueNotifier<int>(0); // bumped on every setState so an open popup redraws too
+	bool _modal_open = false;
 
 	bool get _locked => CmA2uiRegistry.is_answered(widget.message_id);
 
@@ -218,6 +222,20 @@ class _CmA2uiSurfaceState extends State<CmA2uiSurface>
 	{
 		super.initState();
 		_data = CmA2uiPayload._deep_copy(widget.payload.data);
+		for (final component in widget.payload.components.values)
+		{
+			if (component['component'] == 'Modal' && component['trigger'] != null && component['content'] != null)
+			{
+				_modal_of_trigger[component['trigger'].toString()] = component;
+			}
+		}
+	}
+
+	@override
+	void setState(VoidCallback fn)
+	{
+		super.setState(fn);
+		_revision.value++; // the popup is drawn outside this widget's own subtree
 	}
 
 	@override
@@ -227,6 +245,7 @@ class _CmA2uiSurfaceState extends State<CmA2uiSurface>
 		{
 			controller.dispose();
 		}
+		_revision.dispose();
 		super.dispose();
 	}
 
@@ -458,6 +477,20 @@ class _CmA2uiSurfaceState extends State<CmA2uiSurface>
 		return MainAxisAlignment.start;
 	}
 
+	WrapAlignment _wrap_alignment(dynamic value)
+	{
+		switch (value)
+		{
+			case 'center': return WrapAlignment.center;
+			case 'flex-end':
+			case 'end': return WrapAlignment.end;
+			case 'space-between': return WrapAlignment.spaceBetween;
+			case 'space-around': return WrapAlignment.spaceAround;
+			case 'space-evenly': return WrapAlignment.spaceEvenly;
+		}
+		return WrapAlignment.start;
+	}
+
 	CrossAxisAlignment _cross_axis(dynamic value, CrossAxisAlignment fallback)
 	{
 		switch (value)
@@ -532,8 +565,11 @@ class _CmA2uiSurfaceState extends State<CmA2uiSurface>
 			case 'Slider':
 				built = _slider(component);
 				break;
+			case 'Modal':
+				built = _modal(component, depth, in_row);
+				break;
 			default:
-				return const SizedBox.shrink(); // Modal, Video, AudioPlayer and anything newer
+				return const SizedBox.shrink(); // Video, AudioPlayer and anything newer
 		}
 		if (in_row)
 		{
@@ -594,7 +630,26 @@ class _CmA2uiSurfaceState extends State<CmA2uiSurface>
 	Widget _row(Map<String, dynamic> component, int depth)
 	{
 		final style = _style(component);
-		final children = _child_ids(component).map((child) => _build(child, depth + 1, in_row: true)).toList();
+		final child_ids = _child_ids(component);
+		final only_buttons = child_ids.isNotEmpty && child_ids.every((child)
+		{
+			final child_component = widget.payload.components[child];
+			if (child_component == null) return false;
+			return child_component['component'] == 'Button' && _number(_style(child_component)['flex']) == null;
+		});
+		final children = child_ids.map((child) => _build(child, depth + 1, in_row: true)).toList();
+		if (only_buttons)
+		{
+			// Buttons that do not fit side by side move to the next line, as on the website widget.
+			final gap = _number(style['gap']) ?? 8;
+			return _boxed(component, Wrap(
+				spacing: gap,
+				runSpacing: gap,
+				alignment: _wrap_alignment(style['justifyContent']),
+				crossAxisAlignment: WrapCrossAlignment.center,
+				children: children,
+			));
+		}
 		return _boxed(component, Row(
 			mainAxisAlignment: _main_axis(style['justifyContent']),
 			crossAxisAlignment: style['alignItems'] == 'stretch' ? CrossAxisAlignment.start : _cross_axis(style['alignItems'], CrossAxisAlignment.center), // a Row inside the chat list has no fixed height to stretch to
@@ -602,24 +657,129 @@ class _CmA2uiSurfaceState extends State<CmA2uiSurface>
 		));
 	}
 
+	// Tab headers in a strip that scrolls sideways, with the chosen tab's panel below.
 	Widget _tabs(Map<String, dynamic> component, int depth)
 	{
-		final panels = <Widget>[];
+		final titles = <String>[];
+		final children = <String>[];
 		final tabs = component['tabs'];
 		if (tabs is List)
 		{
 			for (final tab in tabs)
 			{
-				if (tab is! Map) continue;
-				final title = _resolve_string(tab['title']);
-				if (title.isNotEmpty)
-				{
-					panels.add(Text(title, style: TextStyle(fontWeight: FontWeight.w700, color: _color(r'$text'))));
-				}
-				panels.add(_build((tab['child'] ?? '').toString(), depth + 1));
+				if (tab is! Map || tab['child'] == null) continue;
+				titles.add(_resolve_string(tab['title']));
+				children.add(tab['child'].toString());
 			}
 		}
-		return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: _spaced(panels, 8, Axis.vertical));
+		if (children.isEmpty) return const SizedBox.shrink();
+		final id = component['id'].toString();
+		int current = _active_tabs[id] ?? 0;
+		if (current >= children.length) current = 0;
+
+		final headers = <Widget>[];
+		for (int index = 0; index < children.length; index++)
+		{
+			final is_selected = index == current;
+			headers.add(InkWell(
+				onTap: () => setState(() { _active_tabs[id] = index; }),
+				child: Container(
+					padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+					decoration: BoxDecoration(border: Border(bottom: BorderSide(color: is_selected ? widget.accent : Colors.transparent, width: 2))),
+					child: Row(
+						mainAxisSize: MainAxisSize.min,
+						children: <Widget>[
+							Text(titles[index], style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: is_selected ? _color(r'$text') : _color(r'$muted'))),
+							if (_subtree_has_error(children[index]))
+								Container(width: 6, height: 6, margin: const EdgeInsetsDirectional.only(start: 6), decoration: BoxDecoration(color: _color(r'$danger'), shape: BoxShape.circle)),
+						],
+					),
+				),
+			));
+		}
+		return Column(
+			mainAxisSize: MainAxisSize.min,
+			crossAxisAlignment: CrossAxisAlignment.stretch,
+			children: <Widget>[
+				Container(
+					decoration: BoxDecoration(border: Border(bottom: BorderSide(color: _color(r'$border')!))),
+					child: Material(
+						type: MaterialType.transparency,
+						child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(mainAxisSize: MainAxisSize.min, children: headers)),
+					),
+				),
+				const SizedBox(height: 10),
+				KeyedSubtree(key: ValueKey('cm_tab_${id}_$current'), child: _build(children[current], depth + 1)),
+			],
+		);
+	}
+
+	// A Modal draws its trigger in place; pressing it opens the content as a popup.
+	Widget _modal(Map<String, dynamic> component, int depth, bool in_row)
+	{
+		final trigger_id = (component['trigger'] ?? '').toString();
+		final trigger = widget.payload.components[trigger_id];
+		if (trigger == null || component['content'] == null) return const SizedBox.shrink();
+		final has_error = _subtree_has_error(component['content'].toString());
+		Widget built = _build(trigger_id, depth + 1, in_row: in_row);
+		if (trigger['component'] != 'Button')
+		{
+			built = GestureDetector(behavior: HitTestBehavior.opaque, onTap: () => _open_modal(component, ''), child: built); // a Button opens it from _press
+		}
+		if (has_error)
+		{
+			built = DecoratedBox(
+				position: DecorationPosition.foreground,
+				decoration: BoxDecoration(border: Border.all(color: _color(r'$danger')!, width: 2), borderRadius: BorderRadius.circular(10)),
+				child: built,
+			);
+		}
+		return built;
+	}
+
+	Future<void> _open_modal(Map<String, dynamic> component, String title) async
+	{
+		if (_modal_open) return;
+		final content_id = component['content'].toString();
+		_modal_open = true;
+		await showDialog<void>(
+			context: context,
+			useRootNavigator: true,
+			builder: (dialog_context)
+			{
+				final palette = CmPalette.of(context);
+				return Dialog(
+					backgroundColor: palette.incoming_bubble,
+					insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
+					shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+					child: ConstrainedBox(
+						constraints: const BoxConstraints(maxWidth: 380),
+						child: SingleChildScrollView(
+							padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+							child: Column(
+								mainAxisSize: MainAxisSize.min,
+								crossAxisAlignment: CrossAxisAlignment.stretch,
+								children: <Widget>[
+									Row(
+										children: <Widget>[
+											Expanded(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: palette.incoming_text))),
+											IconButton(
+												icon: Icon(Icons.close, size: 20, color: palette.incoming_text.withValues(alpha: 0.7)),
+												tooltip: MaterialLocalizations.of(dialog_context).closeButtonLabel,
+												onPressed: () => Navigator.of(dialog_context).pop(),
+											),
+										],
+									),
+									// Redrawn on every change to the widget's state (typing, choosing, a failed submit).
+									ValueListenableBuilder<int>(valueListenable: _revision, builder: (_, __, ___) => _build(content_id, 1)),
+								],
+							),
+						),
+					),
+				);
+			},
+		);
+		_modal_open = false;
 	}
 
 	TextStyle _text_style(Map<String, dynamic> component, {Color? fallback_color, double fallback_size = 14})
@@ -739,7 +899,7 @@ class _CmA2uiSurfaceState extends State<CmA2uiSurface>
 		}
 	}
 
-	List<Map<String, dynamic>> _inputs()
+	List<Map<String, dynamic>> _inputs([String from = 'root'])
 	{
 		const input_types = <String>{'TextField', 'ChoicePicker', 'DateTimeInput', 'CheckBox', 'Slider'};
 		final reachable = <Map<String, dynamic>>[];
@@ -766,9 +926,43 @@ class _CmA2uiSurfaceState extends State<CmA2uiSurface>
 					if (tab is Map && tab['child'] != null) walk(tab['child'].toString());
 				}
 			}
+			if (component['trigger'] != null) walk(component['trigger'].toString());
+			if (component['content'] != null) walk(component['content'].toString());
 		}
-		walk('root');
+		walk(from);
 		return reachable;
+	}
+
+	// True once a submit has failed and an input under [id] is the reason.
+	bool _subtree_has_error(String id)
+	{
+		if (!_show_errors) return false;
+		return _inputs(id).any((input) => _failing_check(input) != null);
+	}
+
+	// Bring the first tab holding a failed input into view, when the tab on show has none.
+	void _show_tabs_with_errors()
+	{
+		for (final component in widget.payload.components.values)
+		{
+			if (component['component'] != 'Tabs' || component['tabs'] is! List) continue;
+			final children = <String>[];
+			for (final tab in component['tabs'] as List)
+			{
+				if (tab is Map && tab['child'] != null) children.add(tab['child'].toString());
+			}
+			final id = component['id'].toString();
+			final current = _active_tabs[id] ?? 0;
+			if (current < children.length && _subtree_has_error(children[current])) continue;
+			for (int index = 0; index < children.length; index++)
+			{
+				if (_subtree_has_error(children[index]))
+				{
+					_active_tabs[id] = index;
+					break;
+				}
+			}
+		}
 	}
 
 	// The first failing check of an input, as a short message; null when it passes.
@@ -812,6 +1006,12 @@ class _CmA2uiSurfaceState extends State<CmA2uiSurface>
 
 	void _press(Map<String, dynamic> component, String label)
 	{
+		final modal = _modal_of_trigger[component['id'].toString()];
+		if (modal != null)
+		{
+			_open_modal(modal, label); // a popup's trigger only shows content, nothing goes to the bot
+			return;
+		}
 		final action = component['action'];
 		if (action is! Map) return;
 
@@ -840,7 +1040,11 @@ class _CmA2uiSurfaceState extends State<CmA2uiSurface>
 		final has_error = _inputs().any((input) => _failing_check(input) != null);
 		if (has_error)
 		{
-			setState(() { _show_errors = true; });
+			setState(()
+			{
+				_show_errors = true;
+				_show_tabs_with_errors();
+			});
 			return;
 		}
 		final context_values = <String, dynamic>{};
@@ -854,6 +1058,10 @@ class _CmA2uiSurfaceState extends State<CmA2uiSurface>
 		}
 		CmA2uiRegistry.mark_answered(widget.message_id);
 		setState(() {});
+		if (_modal_open)
+		{
+			Navigator.of(context, rootNavigator: true).pop(); // a submit inside the popup closes it
+		}
 		widget.on_action(<String, dynamic>{
 			'name': (event['name'] ?? 'submit').toString(),
 			'surfaceId': widget.payload.surface_id,
@@ -933,7 +1141,8 @@ class _CmA2uiSurfaceState extends State<CmA2uiSurface>
 		final background = _color(style['backgroundColor']) ?? _color(style['background']) ?? (is_primary ? widget.accent : (is_borderless ? Colors.transparent : _color(r'$surface')));
 		final has_own_background = style['backgroundColor'] != null || style['background'] != null;
 		final foreground_fallback = (is_primary && !has_own_background) ? widget.on_accent : _color(r'$text');
-		final enabled = is_local || !_locked;
+		final is_trigger = _modal_of_trigger.containsKey(component['id'].toString()); // still opens after the form is sent
+		final enabled = is_local || is_trigger || !_locked;
 		final is_copied = _copied_id == component['id'].toString();
 		final has_padding = style.keys.any((key) => key.toString().startsWith('padding'));
 

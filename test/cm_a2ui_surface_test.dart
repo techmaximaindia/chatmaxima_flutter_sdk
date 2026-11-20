@@ -114,6 +114,78 @@ void main()
 		expect(plain.message, 'Hello');
 	});
 
+	// A surface as the AI block sends it, built from a plain component list.
+	CmA2uiPayload surface_of(List<Map<String, dynamic>> components)
+	{
+		return CmA2uiPayload.from_extra_params(<String, dynamic>{
+			'a2ui': <String, dynamic>{
+				'messages': <dynamic>[
+					<String, dynamic>{'createSurface': <String, dynamic>{'surfaceId': 's1'}},
+					<String, dynamic>{'updateComponents': <String, dynamic>{'surfaceId': 's1', 'components': components}},
+				],
+			},
+		})!;
+	}
+
+	testWidgets('tabs: one panel at a time, a tab header switches it', (tester) async
+	{
+		final payload = surface_of(<Map<String, dynamic>>[
+			{'id': 'root', 'component': 'Tabs', 'tabs': [{'title': 'Overview', 'child': 't1'}, {'title': 'Details', 'child': 't2'}]},
+			{'id': 't1', 'component': 'Text', 'text': 'Overview panel'},
+			{'id': 't2', 'component': 'Text', 'text': 'Details panel'},
+		]);
+		await tester.pumpWidget(MaterialApp(home: Scaffold(body: SingleChildScrollView(child: CmA2uiSurface(message_id: 'm_tabs', payload: payload, accent: const Color(0xFF3B7DDD), on_action: (action, label) {})))));
+		expect(find.text('Overview panel'), findsOneWidget);
+		expect(find.text('Details panel'), findsNothing);
+		await tester.tap(find.text('Details'));
+		await tester.pump();
+		expect(find.text('Overview panel'), findsNothing);
+		expect(find.text('Details panel'), findsOneWidget);
+	});
+
+	testWidgets('modal: the trigger opens a popup, a submit inside closes it', (tester) async
+	{
+		final sent = <Map<String, dynamic>>[];
+		final payload = surface_of(<Map<String, dynamic>>[
+			{'id': 'root', 'component': 'Column', 'children': ['intro', 'modal']},
+			{'id': 'intro', 'component': 'Text', 'text': 'Welcome'},
+			{'id': 'modal', 'component': 'Modal', 'trigger': 'open', 'content': 'body'},
+			{'id': 'open', 'component': 'Button', 'child': 'open_label', 'action': {'event': {'name': 'open'}}},
+			{'id': 'open_label', 'component': 'Text', 'text': 'Open details'},
+			{'id': 'body', 'component': 'Column', 'children': ['body_text', 'confirm']},
+			{'id': 'body_text', 'component': 'Text', 'text': 'Inside the popup'},
+			{'id': 'confirm', 'component': 'Button', 'variant': 'primary', 'child': 'confirm_label', 'action': {'event': {'name': 'confirm'}}},
+			{'id': 'confirm_label', 'component': 'Text', 'text': 'Confirm'},
+		]);
+		await tester.pumpWidget(MaterialApp(home: Scaffold(body: SingleChildScrollView(child: CmA2uiSurface(message_id: 'm_modal', payload: payload, accent: const Color(0xFF3B7DDD), on_action: (action, label) { sent.add(action); })))));
+		expect(find.text('Inside the popup'), findsNothing);
+		await tester.tap(find.text('Open details'));
+		await tester.pumpAndSettle();
+		expect(find.text('Inside the popup'), findsOneWidget);
+		expect(sent, isEmpty); // opening the popup sends nothing
+		await tester.tap(find.text('Confirm'));
+		await tester.pumpAndSettle();
+		expect(find.text('Inside the popup'), findsNothing);
+		expect(sent.single['name'], 'confirm');
+	});
+
+	testWidgets('row of buttons: wraps to the next line on a narrow widget', (tester) async
+	{
+		final payload = surface_of(<Map<String, dynamic>>[
+			{'id': 'root', 'component': 'Card', 'child': 'row'},
+			{'id': 'row', 'component': 'Row', 'children': ['b1', 'b2', 'b3']},
+			{'id': 'b1', 'component': 'Button', 'variant': 'primary', 'child': 'l1', 'action': {'event': {'name': 'a'}}},
+			{'id': 'l1', 'component': 'Text', 'text': 'Primary Action'},
+			{'id': 'b2', 'component': 'Button', 'child': 'l2', 'action': {'event': {'name': 'b'}}},
+			{'id': 'l2', 'component': 'Text', 'text': 'Secondary Action'},
+			{'id': 'b3', 'component': 'Button', 'child': 'l3', 'action': {'event': {'name': 'c'}}},
+			{'id': 'l3', 'component': 'Text', 'text': 'Another Action'},
+		]);
+		await tester.pumpWidget(MaterialApp(home: Scaffold(body: SingleChildScrollView(child: SizedBox(width: 260, child: CmA2uiSurface(message_id: 'm_row', payload: payload, accent: const Color(0xFF3B7DDD), on_action: (action, label) {}))))));
+		expect(tester.takeException(), isNull); // no "overflowed by N pixels"
+		expect(tester.getTopLeft(find.text('Another Action')).dy, greaterThan(tester.getTopLeft(find.text('Primary Action')).dy));
+	});
+
 	test('history: the answer to a widget reads as it did when it was sent', ()
 	{
 		final widget = CmA2uiPayload.from_extra_params(fixtures['product_card']);
